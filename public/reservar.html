@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Reservar · Human Prime Lab</title>
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Unbounded:wght@300;400;500;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/reservar.css">
+</head>
+<body>
+  <header class="site-header" id="header"></header>
+
+  <main class="wrap">
+    <ol class="stepper" id="stepper">
+      <li data-step="1"><b>1</b><span>Servicio</span></li>
+      <li data-step="2"><b>2</b><span>Fecha</span></li>
+      <li data-step="3"><b>3</b><span>Hora</span></li>
+      <li data-step="4"><b>4</b><span>Tus datos</span></li>
+    </ol>
+
+    <div class="summary" id="summary" hidden></div>
+
+    <!-- Paso 1 -->
+    <section class="step" data-panel="1">
+      <h1 class="step-title">Selecciona un servicio</h1>
+      <p class="step-sub">Elige el tipo de entrenamiento o evaluación.</p>
+      <div class="service-list" id="serviceList"><div class="empty"><div class="spinner" style="margin:auto"></div></div></div>
+    </section>
+
+    <!-- Paso 2 -->
+    <section class="step" data-panel="2" hidden>
+      <h1 class="step-title">Selecciona una fecha</h1>
+      <div class="calendar card">
+        <div class="cal-head">
+          <button class="icon-btn" id="calPrev" aria-label="Mes anterior"></button>
+          <b id="calLabel"></b>
+          <button class="icon-btn" id="calNext" aria-label="Mes siguiente"></button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+    </section>
+
+    <!-- Paso 3 -->
+    <section class="step" data-panel="3" hidden>
+      <h1 class="step-title">Selecciona un horario</h1>
+      <p class="step-sub" id="timeSub"></p>
+      <div class="times" id="times"></div>
+    </section>
+
+    <!-- Paso 4 -->
+    <section class="step" data-panel="4" hidden>
+      <h1 class="step-title">Tus datos</h1>
+      <form id="form" class="form" novalidate>
+        <label class="input-icon"><span class="sr">Nombre completo</span><svg></svg><input class="input" name="name" placeholder="Nombre completo" autocomplete="name" required minlength="3" maxlength="100"></label>
+        <label class="input-icon"><span class="sr">Teléfono</span><svg></svg><input class="input" name="phone" placeholder="Teléfono (10 dígitos)" inputmode="tel" autocomplete="tel" required></label>
+        <label class="input-icon"><span class="sr">Correo electrónico</span><svg></svg><input class="input" name="email" type="email" placeholder="Correo electrónico" autocomplete="email" required></label>
+        <div class="form-row">
+          <label class="input-icon"><span class="sr">Edad</span><svg></svg><input class="input" name="age" type="number" min="5" max="110" placeholder="Edad" inputmode="numeric" required></label>
+          <label class="input-icon"><span class="sr">Número de emergencia</span><svg></svg><input class="input" name="emergency" placeholder="Número de emergencia" inputmode="tel" required></label>
+        </div>
+        <label class="field"><span>Observaciones (opcional)</span><textarea class="input" name="notes" maxlength="600" placeholder="¿Alguna enfermedad, lesión o condición que debamos saber?"></textarea></label>
+        <label class="field"><span>ID de socio (si ya tienes uno)</span><input class="input" name="memberId" placeholder="Ej. HPL-0001" maxlength="20" autocapitalize="characters"></label>
+        <button class="btn btn-gold btn-block" type="submit" id="submitBtn"><span>Confirmar reserva</span><span class="btn-chev"></span></button>
+        <p class="fine">Una hora antes de tu cita te pediremos que confirmes tu asistencia.</p>
+      </form>
+    </section>
+
+    <!-- Confirmación -->
+    <section class="step done" data-panel="5" hidden>
+      <div class="done-icon"></div>
+      <h1 class="step-title">¡Reserva confirmada!</h1>
+      <p class="step-sub">Guardamos tu lugar. Te esperamos.</p>
+      <div class="card done-card" id="doneCard"></div>
+      <div class="done-actions" id="doneActions"></div>
+    </section>
+
+    <button class="btn btn-sm btn-ghost back" id="backBtn" hidden></button>
+  </main>
+
+  <script type="module" src="js/reservar.js"></script>
+</body>
+</html>
