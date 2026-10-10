@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Administración · Human Prime Lab</title>
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Human Prime">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&family=Unbounded:wght@300;400;500;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <!-- Acceso del personal -->
+  <section class="auth" id="auth" hidden>
+    <form class="auth-box card" id="authForm" novalidate>
+      <div class="auth-brand" id="authBrand"></div>
+      <h1 class="title-wide" id="authTitle">Acceso administración</h1>
+      <p class="auth-sub" id="authSub">Ingresa con la cuenta que te asignó el administrador.</p>
+      <label class="field auth-name" hidden><span>Tu nombre</span><input class="input" name="name" autocomplete="name"></label>
+      <label class="field"><span>Correo electrónico</span><input class="input" name="email" type="email" autocomplete="username" required></label>
+      <label class="field"><span>Contraseña</span><input class="input" name="password" type="password" autocomplete="current-password" required minlength="6"></label>
+      <button class="btn btn-gold btn-block" type="submit" id="authBtn">Iniciar sesión</button>
+      <button class="btn btn-sm btn-ghost" type="button" id="forgotBtn">¿Olvidaste tu contraseña?</button>
+    </form>
+  </section>
+
+  <!-- Panel -->
+  <div class="shell" id="shell" hidden>
+    <aside class="side" id="side">
+      <div class="side-brand" id="sideBrand"></div>
+      <nav class="side-nav" id="nav"></nav>
+    </aside>
+    <div class="side-scrim" id="scrim"></div>
+    <div class="main">
+      <header class="top">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Menú"></button>
+        <div class="top-title"><h1 class="title-wide" id="pageTitle"></h1><p id="pageSub"></p></div>
+        <div class="user" id="user"></div>
+      </header>
+      <main class="content" id="content"></main>
+    </div>
+  </div>
+
+  <script type="module" src="js/admin/main.js"></script>
+</body>
+</html>
