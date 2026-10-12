@@ -1,10 +1,12 @@
 // Notificaciones push (Firebase Cloud Messaging) para clientes, socios y personal.
 // Requiere la "clave VAPID" de Firebase guardada en Configuración del sitio → Notificaciones.
-import { app } from "./firebase.js";
-import { store } from "./utils.js";
+import { app, db, doc, setDoc, deleteDoc, serverTimestamp } from "./firebase.js";
+import { store, sha256 } from "./utils.js";
 
 const FCM = "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 const TOKEN_KEY = "hpl_push_token";
+const OFF_KEY = "hpl_push_off"; // cuándo la persona las desactivó con la campana
+const PROMPT_KEY = "hpl_push_prompt"; // cuándo se le preguntó por última vez
 
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
@@ -33,8 +35,49 @@ export async function enablePush(vapidKey) {
   if (pushState(vapidKey) === "off" || pushState(vapidKey) === "install") return null;
   const perm = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
   if (perm !== "granted") return null;
-  return refreshToken(vapidKey);
+  const token = await refreshToken(vapidKey);
+  if (token) {
+    store.del(OFF_KEY);
+    subscribe(token);
+  }
+  return token;
 }
+
+// Lista general de personas con notificaciones (para promociones). La llave es el hash del token.
+async function subscribe(token) {
+  try {
+    const platform = isIOS() ? "ios" : /android/i.test(navigator.userAgent) ? "android" : "web";
+    await setDoc(doc(db, "subscribers", await sha256(token)), { token, platform, createdAt: serverTimestamp() });
+  } catch { /* ya estaba suscrito */ }
+}
+
+// Desactiva las notificaciones en este dispositivo: el token deja de servir en todo el sistema.
+export async function disablePush(vapidKey) {
+  const token = store.get(TOKEN_KEY);
+  try {
+    const { getMessaging, getToken, deleteToken, isSupported } = await import(FCM);
+    if (await isSupported()) {
+      const messaging = getMessaging(app);
+      await getToken(messaging, { vapidKey, serviceWorkerRegistration: await registration() }).catch(() => {});
+      await deleteToken(messaging);
+    }
+  } catch (e) {
+    console.warn("No se pudo borrar el token:", e.message);
+  }
+  if (token) await deleteDoc(doc(db, "subscribers", await sha256(token))).catch(() => {});
+  store.del(TOKEN_KEY);
+  store.set(OFF_KEY, Date.now());
+}
+
+// ¿Conviene mostrar la pregunta automática al abrir la app?
+export function shouldPrompt(vapidKey) {
+  const st = pushState(vapidKey);
+  const days = (k) => (Date.now() - (store.get(k) || 0)) / 86400000;
+  if (st === "ask") return days(OFF_KEY) > 30 && days(PROMPT_KEY) > 3 ? st : null;
+  if (st === "install") return days(PROMPT_KEY) > 7 ? st : null;
+  return null;
+}
+export function markPrompted() { store.set(PROMPT_KEY, Date.now()); }
 
 // Obtiene el token sin pedir permiso (solo si ya se concedió antes).
 export async function refreshToken(vapidKey) {

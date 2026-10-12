@@ -307,3 +307,9 @@ body.modal-open { overflow: hidden; }
 .side { padding-top: calc(22px + env(safe-area-inset-top)); }
 @media (max-width: 960px) { .top { padding-top: calc(12px + env(safe-area-inset-top)); } }
 .save-bar { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+.hist-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.hist-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.hist-actions .btn-sm { min-height: 32px; padding: 0 10px; font-size: 9.5px; }
+.hist-actions .icon-btn { width: 32px; height: 32px; color: var(--muted); }
+.hist-actions .icon-btn:hover { color: var(--bad); }
+.hist-actions .icon-btn svg { width: 16px; height: 16px; }

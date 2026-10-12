@@ -1,8 +1,8 @@
 // Mensajes a socios: panel del socio, WhatsApp y correo.
-import { db, collection, addDoc, getDocs, query, orderBy, limit, writeBatch, doc, arrayUnion, serverTimestamp } from "../firebase.js";
+import { db, collection, addDoc, getDocs, getCountFromServer, query, orderBy, limit, writeBatch, doc, deleteDoc, arrayUnion, serverTimestamp } from "../firebase.js";
 import { $, esc, ICONS, todayStr, fmtDate, waLink, fillTemplate, toast } from "../utils.js";
 import { getAll, memberState, daysInactive } from "./data.js";
-import { openModal, loadingHTML } from "./ui.js";
+import { openModal, confirmDialog, loadingHTML } from "./ui.js";
 
 const AUDIENCES = [
   ["todos", "Todos los socios"],
@@ -11,6 +11,7 @@ const AUDIENCES = [
   ["vencidos", "Vencidos"],
   ["inactivos", "Sin asistir +45 días"],
   ["elegir", "Elegir socios…"],
+  ["push", "📣 Todos con notificaciones activas (promoción)"],
 ];
 
 export async function render(el, ctx) {
@@ -31,6 +32,8 @@ export async function render(el, ctx) {
             <label class="field span-2"><span>Mensaje</span><textarea class="input" id="body" rows="6" placeholder="Hola {nombre}, …"></textarea>
               <div class="tpl-vars"><code data-v="{nombre}">{nombre}</code><code data-v="{plan}">{plan}</code><code data-v="{vence}">{vence}</code><code data-v="{id}">{id}</code></div></label>
           </div>
+          <p class="hint" id="pushInfo" hidden>Llega como notificación al teléfono de todas las personas que activaron las notificaciones (clientes, socios y visitantes). Ideal para promociones. No uses {nombre} aquí.</p>
+          <div id="chWrap">
           <h4 class="form-sec">Enviar por</h4>
           <div class="checks">
             <label class="check"><input type="checkbox" id="chPanel" checked> ${ICONS.user} Panel del socio</label>
@@ -38,6 +41,7 @@ export async function render(el, ctx) {
             <label class="check"><input type="checkbox" id="chMail"> ${ICONS.mail} Correo electrónico</label>
           </div>
           <p class="hint">WhatsApp abre un mensaje listo por cada socio. El correo se envía automáticamente si instalaste la extensión “Trigger Email” de Firebase (ver README).</p>
+          </div>
           <button class="btn btn-gold btn-block" id="send" style="margin-top:16px">${ICONS.send}<span>Enviar mensaje</span></button>
         </div>
       </div>
@@ -58,14 +62,30 @@ export async function render(el, ctx) {
     if (k === "inactivos") return members.filter((mb) => (daysInactive(mb, today) ?? 0) > 45);
     return members.filter((mb) => picked.has(mb.id));
   };
-  const updateCount = () => { $("#count", el).textContent = `${audience().length} socios`; };
+  let pushCount = null;
+  const isPush = () => $("#aud", el).value === "push";
+  const updateCount = async () => {
+    if (isPush()) {
+      $("#count", el).textContent = "contando…";
+      try { pushCount = (await getCountFromServer(collection(db, "subscribers"))).data().count; } catch { pushCount = 0; }
+      if (isPush()) $("#count", el).textContent = `${pushCount} dispositivos`;
+      return;
+    }
+    $("#count", el).textContent = `${audience().length} socios`;
+  };
   const drawPick = () => {
     const q = $("#pickQ", el).value.toLowerCase();
     $("#pick", el).innerHTML = members
       .filter((mb) => !q || `${mb.name} ${mb.memberId}`.toLowerCase().includes(q))
       .map((mb) => `<label class="check"><input type="checkbox" value="${esc(mb.id)}" ${picked.has(mb.id) ? "checked" : ""}> ${esc(mb.name)} <span class="muted">· ${esc(mb.memberId)}</span></label>`).join("") || `<p class="muted">Sin socios.</p>`;
   };
-  $("#aud", el).onchange = () => { $("#pickWrap", el).hidden = $("#aud", el).value !== "elegir"; drawPick(); updateCount(); };
+  $("#aud", el).onchange = () => {
+    $("#pickWrap", el).hidden = $("#aud", el).value !== "elegir";
+    $("#chWrap", el).hidden = isPush();
+    $("#pushInfo", el).hidden = !isPush();
+    drawPick();
+    updateCount();
+  };
   $("#pickQ", el).oninput = drawPick;
   $("#pick", el).onchange = (e) => { if (e.target.checked) picked.add(e.target.value); else picked.delete(e.target.value); updateCount(); };
   el.querySelector(".tpl-vars").onclick = (e) => {
@@ -77,13 +97,14 @@ export async function render(el, ctx) {
   };
   updateCount();
 
+  let hist = [];
   const drawHist = async () => {
     try {
-      const snap = await getDocs(query(collection(db, "messages"), orderBy("createdAt", "desc"), limit(30)));
-      $("#hist", el).innerHTML = snap.docs.map((d) => {
-        const x = d.data();
+      const snap = await getDocs(query(collection(db, "messages"), orderBy("createdAt", "desc"), limit(50)));
+      hist = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      $("#hist", el).innerHTML = hist.map((x) => {
         const when = x.createdAt?.toDate ? x.createdAt.toDate().toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" }) : "";
-        return `<div class="hist-item"><b>${esc(x.title || "Mensaje")}</b><p>${esc(x.body)}</p><small>${esc(x.audience)} · ${x.count} socios · ${(x.channels || []).join(", ")} · ${esc(x.by || "")} · ${when}</small></div>`;
+        return `<div class="hist-item" data-id="${esc(x.id)}"><div class="hist-top"><b>${esc(x.title || "Mensaje")}</b><span class="hist-actions"><button class="btn btn-sm" data-h="reuse" title="Usar como plantilla">${ICONS.edit}<span>Reutilizar</span></button><button class="icon-btn" data-h="del" title="Borrar del historial">${ICONS.trash}</button></span></div><p>${esc(x.body)}</p><small>${esc(x.audience)} · ${x.count} ${x.audience === "Notificación a todos" ? "dispositivos" : "socios"} · ${(x.channels || []).join(", ")} · ${esc(x.by || "")} · ${when}</small></div>`;
       }).join("") || `<div class="empty">Aún no has enviado mensajes.</div>`;
     } catch (ex) {
       console.warn(ex);
@@ -92,10 +113,44 @@ export async function render(el, ctx) {
   };
   drawHist();
 
+  // Historial: reutilizar como plantilla o borrar
+  $("#hist", el).addEventListener("click", async (e) => {
+    const act = e.target.closest("[data-h]")?.dataset.h;
+    const item = e.target.closest(".hist-item");
+    if (!act || !item) return;
+    const x = hist.find((h) => h.id === item.dataset.id);
+    if (!x) return;
+    if (act === "reuse") {
+      $("#title", el).value = x.title || "";
+      $("#body", el).value = x.body || "";
+      if (x.audience === "Notificación a todos") { $("#aud", el).value = "push"; $("#aud", el).onchange(); }
+      el.querySelector(".panel").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("#body", el).focus();
+      toast("Mensaje cargado. Ajústalo y elige a quién enviarlo.");
+    }
+    if (act === "del") {
+      if (!(await confirmDialog(`¿Borrar “${x.title || "Mensaje"}” del historial? Los socios que ya lo recibieron lo conservan.`, { ok: "Borrar", danger: true }))) return;
+      try { await deleteDoc(doc(db, "messages", x.id)); toast("Mensaje borrado del historial."); drawHist(); }
+      catch (ex) { console.error(ex); toast("No se pudo borrar.", "error"); }
+    }
+  });
+
   $("#send", el).onclick = async () => {
-    const list = audience();
     const title = $("#title", el).value.trim() || "Mensaje del gimnasio";
     const body = $("#body", el).value.trim();
+    // Promoción: notificación push a todos los dispositivos suscritos (la envía la función difusionPush)
+    if (isPush()) {
+      if (!body) { toast("Escribe el mensaje.", "error"); return; }
+      if (!pushCount) { toast("Aún no hay personas con notificaciones activas.", "warn"); return; }
+      try {
+        await addDoc(collection(db, "broadcasts"), { title, body, url: "index.html", status: "pendiente", by: ctx.staff.name, createdAt: serverTimestamp() });
+        await addDoc(collection(db, "messages"), { title, body, audience: "Notificación a todos", count: pushCount, channels: ["notificación push"], by: ctx.staff.name, createdAt: serverTimestamp() });
+        toast(`Notificación enviada a ${pushCount} dispositivos.`);
+        drawHist();
+      } catch (ex) { console.error(ex); toast("No se pudo enviar la notificación.", "error"); }
+      return;
+    }
+    const list = audience();
     const ch = { panel: $("#chPanel", el).checked, wa: $("#chWa", el).checked, mail: $("#chMail", el).checked };
     if (!body) { toast("Escribe el mensaje.", "error"); return; }
     if (!list.length) { toast("No hay socios en esta audiencia.", "error"); return; }

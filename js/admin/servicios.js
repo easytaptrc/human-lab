@@ -149,6 +149,7 @@ function editService(svc, onDone) {
 // Se guarda `schedule` (bloques, para editar) y `slots` (cada horario con su cupo, lo que usan las reservas).
 const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const toTime = (n) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+const EVERY = [10, 15, 20, 30, 45, 60, 75, 90, 120];
 const DAY_SETS = [["Lun–Vie", [1, 2, 3, 4, 5]], ["Lun–Sáb", [1, 2, 3, 4, 5, 6]], ["Toda la semana", [1, 2, 3, 4, 5, 6, 0]], ["Sáb", [6]], ["Dom", [0]]];
 
 function blockTimes(b) {
@@ -190,6 +191,7 @@ function slotsToBlocks(slots = {}) {
 
 function editSchedule(svc, onDone) {
   let blocks = svc.schedule?.length ? structuredClone(svc.schedule) : slotsToBlocks(svc.slots);
+  blocks.forEach((b) => { b.custom = !EVERY.includes(Number(b.every)); });
   if (!blocks.length) blocks = [{ days: [1, 2, 3, 4, 5], from: "07:00", to: "20:00", every: Number(svc.durationMin) || 60, cap: 5 }];
 
   openModal({
@@ -215,7 +217,11 @@ function editSchedule(svc, onDone) {
             <div class="block-grid">
               <label class="field"><span>Primer horario</span><input class="input" type="time" data-f="from" value="${b.from}"></label>
               <label class="field"><span>Último horario</span><input class="input" type="time" data-f="to" value="${b.to}"></label>
-              <label class="field"><span>Cada</span><select class="input" data-f="every">${[15, 20, 30, 45, 60, 75, 90, 120].map((v) => `<option value="${v}" ${Number(b.every) === v ? "selected" : ""}>${v} min</option>`).join("")}</select></label>
+              <label class="field"><span>Cada</span><select class="input" data-f="everySel">
+                ${EVERY.map((v) => `<option value="${v}" ${!b.custom && Number(b.every) === v ? "selected" : ""}>${v} min</option>`).join("")}
+                <option value="custom" ${b.custom ? "selected" : ""}>Personalizado…</option>
+              </select></label>
+              ${b.custom ? `<label class="field"><span>Minutos (personalizado)</span><input class="input" type="number" min="5" max="600" step="1" data-f="every" value="${b.every}" placeholder="Ej. 50"></label>` : ""}
               <label class="field"><span>Lugares</span><input class="input" type="number" min="1" data-f="cap" value="${b.cap}"></label>
             </div>
             <p class="block-info">${n ? `${n} horarios por día${b.days.length ? ` · ${n * b.cap * b.days.length} lugares por semana` : ""}` : "Revisa las horas: el último horario debe ser igual o después del primero."}${b.days.length ? "" : " · <b>Elige al menos un día.</b>"}</p>
@@ -238,7 +244,12 @@ function editSchedule(svc, onDone) {
           b.days = e.target.checked ? [...new Set([...b.days, d])] : b.days.filter((x) => x !== d);
         } else if (e.target.dataset.f) {
           const f = e.target.dataset.f;
-          b[f] = f === "every" || f === "cap" ? Number(e.target.value) : e.target.value;
+          if (f === "everySel") {
+            b.custom = e.target.value === "custom";
+            if (!b.custom) b.every = Number(e.target.value);
+          } else {
+            b[f] = f === "every" || f === "cap" ? Number(e.target.value) : e.target.value;
+          }
         }
         draw();
       });

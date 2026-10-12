@@ -2,6 +2,8 @@
 import { db, collection, getDocs, query, where } from "./firebase.js";
 import { loadSite, startLoader, brandHTML } from "./site.js";
 import { $, esc, ICONS, digits, waLink, fmtMoney, toast } from "./utils.js";
+import { pushState, enablePush, disablePush, shouldPrompt, markPrompted, INSTALL_HINT } from "./push.js";
+import { sheet } from "./sheet.js";
 
 const loader = startLoader({ min: 2200 });
 const { s, m } = await loadSite();
@@ -17,7 +19,10 @@ const socialsHTML = () =>
 // Cabecera
 $("#header").innerHTML = `
   <a href="index.html" aria-label="Inicio">${brandHTML(s, m)}</a>
-  <button class="icon-btn" id="menuBtn" aria-label="Abrir menú">${ICONS.menu}</button>`;
+  <div class="header-actions">
+    <button class="icon-btn bell" id="bellBtn" hidden></button>
+    <button class="icon-btn" id="menuBtn" aria-label="Abrir menú">${ICONS.menu}</button>
+  </div>`;
 
 // Menú lateral
 const drawer = $("#drawer");
@@ -163,5 +168,65 @@ const onScroll = () => header.classList.toggle("scrolled", scrollY > 40);
 addEventListener("scroll", onScroll, { passive: true });
 onScroll();
 
+// ---------- Notificaciones: campana + pregunta al abrir la app ----------
+const bell = $("#bellBtn");
+function paintBell() {
+  const st = pushState(s.vapidKey);
+  bell.hidden = st === "off";
+  bell.classList.toggle("on", st === "ready");
+  bell.innerHTML = st === "ready" ? ICONS.bell : ICONS.bellOff;
+  bell.setAttribute("aria-label", st === "ready" ? "Notificaciones activadas" : "Activar notificaciones");
+  bell.title = st === "ready" ? "Notificaciones activadas (toca para desactivar)" : "Activar notificaciones";
+}
+
+// Se llama directamente desde el toque: el navegador solo muestra el permiso si viene de una acción del usuario.
+function activate() {
+  return enablePush(s.vapidKey).then((t) => {
+    toast(t ? "¡Listo! Te avisaremos de promociones, citas y novedades." : "No se activaron. Revisa los permisos de notificaciones del navegador.", t ? "ok" : "warn");
+    paintBell();
+    return !!t;
+  });
+}
+
+const installSheet = () => sheet({ icon: "bell", title: "Recibe nuestras notificaciones", text: INSTALL_HINT, actions: [{ label: "Entendido", cls: "btn-gold", value: true }] });
+const deniedSheet = () => sheet({ icon: "bellOff", title: "Notificaciones bloqueadas", text: "Las bloqueaste en este navegador. Para activarlas, abre los ajustes del sitio (el candado junto a la dirección) y permite las notificaciones.", actions: [{ label: "Entendido", cls: "btn-gold", value: true }] });
+
+bell.addEventListener("click", async () => {
+  const st = pushState(s.vapidKey);
+  if (st === "ask") { await activate(); return; }
+  if (st === "install") { await installSheet(); return; }
+  if (st === "denied") { await deniedSheet(); return; }
+  if (st === "ready") {
+    const ok = await sheet({
+      icon: "bellOff",
+      title: "¿Desactivar notificaciones?",
+      text: "¿Estás seguro de desactivar las notificaciones? Te puedes perder las promociones, los recordatorios de tus citas y los avisos de tu membresía.",
+      actions: [{ label: "Cancelar", value: false }, { label: "Sí, desactivar", cls: "btn-danger", value: true }],
+    });
+    if (!ok) return;
+    bell.disabled = true;
+    await disablePush(s.vapidKey);
+    bell.disabled = false;
+    paintBell();
+    toast("Notificaciones desactivadas. Puedes volver a activarlas con la campana.");
+  }
+});
+paintBell();
+
 await loader.done();
 document.body.classList.add("ready");
+
+// Pregunta al abrir la app (no insiste: vuelve a preguntar después de unos días)
+const ask = shouldPrompt(s.vapidKey);
+if (ask) {
+  setTimeout(async () => {
+    markPrompted();
+    if (ask === "install") { await installSheet(); return; }
+    await sheet({
+      icon: "bell",
+      title: "¿Quieres activar las notificaciones?",
+      text: "Te avisaremos de promociones, recordatorios de tus citas y novedades de Human Prime Lab.",
+      actions: [{ label: "Ahora no", value: false }, { label: "Activar", cls: "btn-gold", onClick: activate }],
+    });
+  }, 1200);
+}
