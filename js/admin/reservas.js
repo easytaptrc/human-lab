@@ -116,6 +116,10 @@ export async function render(el, ctx) {
   });
 
   await load();
+  // Se actualiza sola cuando llega una reserva nueva o un cliente confirma
+  const onLive = () => load().catch(() => {});
+  addEventListener("hpl:reserva", onLive);
+  return () => removeEventListener("hpl:reserva", onLive);
 }
 
 export function reminderText(ctx, n, r) {
@@ -149,6 +153,10 @@ async function cancel(r) {
     tx.update(doc(db, "reservations", r.id), { status: "cancelada", statusAt: serverTimestamp() });
     if (slot.exists() && r.status !== "cancelada") tx.update(slotRef, { count: Math.max(0, (slot.data().count || 0) - 1) });
   });
+  if (r.memberId) {
+    const mb = (await getAll("members").catch(() => [])).find((x) => x.memberId === r.memberId);
+    if (mb?.portalKey) await updateDoc(doc(db, "portal", mb.portalKey, "reservas", r.id), { status: "cancelada" }).catch(() => {});
+  }
 }
 
 function assignMember(ctx, r, onDone) {
@@ -189,6 +197,7 @@ function openDetail(ctx, r, onDone) {
         <dt>Emergencia</dt><dd>${esc(r.emergency)}</dd>
         <dt>Observaciones</dt><dd>${esc(r.notes || "—")}</dd>
         <dt>ID de socio</dt><dd>${esc(r.memberId || (r.memberIdTyped ? `${r.memberIdTyped} (no verificado)` : "—"))}</dd>
+        <dt>Aviso en teléfono</dt><dd>${r.pushToken ? "Activado (recibirá el recordatorio 1 h antes)" : "No activado"}</dd>
         <dt>Origen</dt><dd>${r.source === "recepcion" ? `Recepción${r.by ? " · " + esc(r.by) : ""}` : "Reserva en línea"}</dd>
       </dl>`,
   });

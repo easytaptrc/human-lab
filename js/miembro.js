@@ -1,7 +1,8 @@
 // Panel del socio: acceso con ID + últimos 4 dígitos del teléfono.
-import { db, doc, getDoc, collection, getDocs, query, where } from "./firebase.js";
+import { db, doc, getDoc, updateDoc, collection, getDocs, query, where } from "./firebase.js";
 import { loadSite, startLoader, brandHTML } from "./site.js";
 import { $, esc, ICONS, todayStr, daysBetween, fmtDate, parseDate, MESES_CORTOS, waLink, sha256, store, toast, digits } from "./utils.js";
+import { pushState, enablePush, refreshToken, INSTALL_HINT } from "./push.js";
 
 const loader = startLoader({ min: 700 });
 const { s, m } = await loadSite({ media: ["logo", "hero"] });
@@ -94,6 +95,8 @@ async function showProfile(key, p) {
     </div>
     ${s.whatsapp && (!active || (left !== null && left <= 5)) ? `<a class="btn btn-gold btn-block" target="_blank" rel="noopener" href="${waLink(s.whatsapp, `Hola, soy ${p.name} (ID ${p.memberId}). Quiero ${none ? "contratar" : "renovar"} mi membresía.`)}">${ICONS.whatsapp}<span>${none ? "Contratar membresía" : "Renovar membresía"}</span></a>` : ""}
 
+    <div class="push-card card" id="pushCard" hidden></div>
+
     <div class="block-head"><span class="eyebrow">Mis próximas reservas</span><a href="reservar.html?socio=${encodeURIComponent(p.memberId)}">Reservar ${ICONS.chevron}</a></div>
     <div class="res-list">
       ${reservas.length ? reservas.map((r) => {
@@ -116,12 +119,45 @@ async function showProfile(key, p) {
       <a class="btn btn-block" href="reservar.html?socio=${encodeURIComponent(p.memberId)}">${ICONS.calendar}<span>Nueva reserva</span></a>
       <button class="btn btn-block btn-ghost" id="logout">${ICONS.logout}<span>Cerrar sesión</span></button>
     </div>`;
+  renderPush(key, p);
   $("#logout").addEventListener("click", () => {
     store.del(SESSION);
     box.hidden = true;
     $("#login").hidden = false;
     form.reset();
   });
+}
+
+// Notificaciones del socio: avisos de vencimiento, mensajes del gimnasio y recordatorios de citas.
+async function savePortalToken(key, p, token) {
+  const list = p.pushTokens || [];
+  if (!token || list.includes(token)) return;
+  const next = [...list, token].slice(-5);
+  await updateDoc(doc(db, "portal", key), { pushTokens: next });
+  p.pushTokens = next;
+}
+
+function renderPush(key, p) {
+  const box = $("#pushCard");
+  const st = pushState(s.vapidKey);
+  if (st === "off") { box.hidden = true; return; }
+  box.hidden = false;
+  if (st === "ready") {
+    box.innerHTML = `${ICONS.bell}<p><b>Notificaciones activadas</b> en este teléfono.</p>`;
+    refreshToken(s.vapidKey).then((t) => savePortalToken(key, p, t)).catch(() => {});
+  } else if (st === "install") {
+    box.innerHTML = `${ICONS.bell}<p>Recibe avisos de tu membresía y tus citas. ${INSTALL_HINT}</p>`;
+  } else if (st === "denied") {
+    box.innerHTML = `${ICONS.bell}<p>Las notificaciones están bloqueadas. Actívalas en los ajustes del navegador para este sitio.</p>`;
+  } else {
+    box.innerHTML = `${ICONS.bell}<p>Recibe avisos de tu membresía, mensajes del gimnasio y recordatorios de tus citas.</p><button class="btn btn-sm btn-gold" id="pushOn">Activar</button>`;
+    $("#pushOn").onclick = async () => {
+      const t = await enablePush(s.vapidKey);
+      if (!t) { toast("No se activaron las notificaciones.", "warn"); renderPush(key, p); return; }
+      try { await savePortalToken(key, p, t); toast("¡Listo! Te avisaremos aquí."); } catch (e) { console.error(e); toast("No pudimos guardar el aviso.", "error"); }
+      renderPush(key, p);
+    };
+  }
 }
 
 // Sesión recordada

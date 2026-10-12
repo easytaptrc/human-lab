@@ -4,7 +4,7 @@ import { $, esc, ICONS, toast, compressImage } from "../utils.js";
 import { DEFAULTS, DEFAULT_MEDIA, applyTheme } from "../site.js";
 import { logoMark } from "../logo.js";
 
-const TABS = [["marca", "Marca y logos"], ["portada", "Portada"], ["botones", "Botones y secciones"], ["contacto", "Contacto y redes"], ["colores", "Colores"], ["reservas", "Reservas"]];
+const TABS = [["marca", "Marca y logos"], ["portada", "Portada"], ["botones", "Botones y secciones"], ["contacto", "Contacto y redes"], ["colores", "Colores"], ["reservas", "Reservas y avisos"]];
 const PRESETS = [
   ["Original", { gold: "#ad8a5c", bg: "#0a0a0a", surface: "#141414", text: "#ece8e2" }],
   ["Oro claro", { gold: "#c9a46a", bg: "#0b0b0c", surface: "#161618", text: "#f1ede6" }],
@@ -118,7 +118,10 @@ export async function render(el, ctx) {
         ${inp("bookingDays", "Días hacia adelante para reservar", { type: "number" })}
         ${inp("minNoticeMin", "Anticipación mínima (minutos)", { type: "number" })}
       </div>
-      <p class="hint">Los horarios y cupos de cada servicio se configuran en “Servicios y cupos”.</p>`,
+      <p class="hint">Los horarios y cupos de cada servicio se configuran en “Servicios y cupos”.</p>
+      <h4 class="form-sec">Notificaciones push</h4>
+      <div class="form-grid">${inp("vapidKey", "Clave de notificaciones (VAPID)", { span: true, ph: "BExxxxxxxx…" })}</div>
+      <p class="hint">Firebase Console → ⚙ Configuración del proyecto → Cloud Messaging → Certificados push web → “Generar par de claves”. Copia la clave y pégala aquí. Sin esta clave no se muestran las opciones de notificación.</p>`,
   };
 
   const draw = () => { $("#form", el).innerHTML = forms[tab](); };
@@ -210,6 +213,7 @@ export async function render(el, ctx) {
       clean.heroLines = (s.heroLines || []).map((x) => x || "");
       clean.sideWords = (s.sideWords || []).map((x) => x || "");
       clean.footerWords = (s.footerWords || []).map((x) => x || "");
+      clean.vapidKey = String(s.vapidKey || "").replace(/\s+/g, "");
       await setDoc(doc(db, "settings", "site"), { ...clean, updatedAt: serverTimestamp(), updatedBy: ctx.staff.name });
       for (const [k, v] of Object.entries(changedMedia)) {
         if (v === null) await deleteDoc(doc(db, "media", k));

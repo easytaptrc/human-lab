@@ -38,6 +38,7 @@ export const DEFAULTS = {
   siteUrl: "",
   bookingDays: 30,
   minNoticeMin: 30,
+  vapidKey: "", // Firebase → Configuración del proyecto → Cloud Messaging → Certificados push web
 };
 
 export const DEFAULT_MEDIA = { logo: "", logoFull: "", hero: "assets/img/portada.jpg" };
@@ -101,7 +102,7 @@ export function applyTheme(s) {
 }
 
 // App web instalable: registra el service worker (no en los emuladores locales).
-if ("serviceWorker" in navigator && location.protocol === "https:") {
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 

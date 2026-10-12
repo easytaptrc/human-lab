@@ -240,3 +240,70 @@ body.modal-open { overflow: hidden; }
 .hist-item b { font-size: 13.5px; }
 .hist-item p { margin: 4px 0; color: var(--muted); font-size: 13px; white-space: pre-line; }
 .hist-item small { color: var(--faint); font-size: 11.5px; }
+
+/* Horarios por bloques */
+.blocks { display: flex; flex-direction: column; gap: 12px; }
+.block { border: 1px solid var(--line-2); border-radius: 12px; padding: 14px; background: color-mix(in srgb, var(--surface) 60%, #000); }
+.block-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.block-top .icon-btn { color: var(--muted); flex: none; }
+.block-top .icon-btn:hover { color: var(--bad); }
+.block-sets { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 12px; font-size: 12px; }
+.block-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.block-grid .input { min-height: 42px; padding: 8px 10px; }
+.block-info { margin: 10px 0 0; font-size: 12.5px; color: var(--gold); }
+.add-block { width: 100%; margin-top: 12px; padding: 12px; font-size: 13px; }
+.week-sum { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.ws-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 14px; font-size: 13px; border-bottom: 1px solid var(--line); }
+.ws-row:last-child { border-bottom: 0; }
+.ws-row b { font-weight: 500; }
+@media (max-width: 640px) {
+  .block-grid { grid-template-columns: 1fr 1fr; }
+  .dow-pick span { width: 32px; height: 32px; }
+}
+.badge svg { width: 12px; height: 12px; margin-right: 4px; }
+@media (max-width: 640px) {
+  .block .dow-pick { gap: 3px; flex-wrap: nowrap; }
+  .block .dow-pick span { width: 30px; height: 30px; font-size: 11.5px; }
+  .block { padding: 12px; }
+  /* Ventanas a pantalla completa en el teléfono */
+  .modal { padding: 0; align-items: end; }
+  .modal-box { width: 100%; max-height: 94svh; border-radius: 16px 16px 0 0; border-left: 0; border-right: 0; border-bottom: 0; }
+  .modal-wide { width: 100%; }
+  .modal-body { padding: 16px; }
+  .modal-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  .modal-foot .btn { flex: 1; }
+}
+
+/* Teléfono: tablas como tarjetas (cada celda muestra su título) */
+@media (max-width: 640px) {
+  .table-wrap { overflow: visible; }
+  table.t, .t tbody, .t tr, .t td { display: block; width: 100%; }
+  .t thead { display: none; }
+  .t tbody tr { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .t tbody tr:last-child { border-bottom: 0; }
+  .t td { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 4px 0; border: 0; text-align: right; min-height: 30px; }
+  .t td::before { content: attr(data-label); flex: none; font-family: var(--font-display); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); text-align: left; }
+  .t td[data-label=""]::before { display: none; }
+  .t td[data-label=""] { justify-content: flex-end; }
+  .t .who { min-width: 0; justify-content: flex-end; text-align: right; }
+  .t .actions { justify-content: flex-end; flex-wrap: wrap; }
+  .t td .btn-sm { min-height: 36px; }
+  /* Cupos del día: fila deslizable en lugar de una lista larga */
+  .occ { display: flex; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
+  .occ-item { flex: none; width: 128px; scroll-snap-align: start; }
+  .toolbar .grow { min-width: 100%; order: 5; }
+  .toolbar > .btn-gold { order: 6; width: 100%; }
+  .stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 14px; }
+  .stat b { font-size: 26px; }
+  .panel-head { padding: 14px 16px; }
+  .panel-body { padding: 16px; }
+  .seg { width: 100%; overflow-x: auto; }
+  .seg button { flex: none; }
+  .bar-row { grid-template-columns: minmax(90px, 120px) 1fr 34px; }
+  .kv { grid-template-columns: 1fr; gap: 2px; }
+}
+.top { padding-top: calc(18px + env(safe-area-inset-top)); }
+.side { padding-top: calc(22px + env(safe-area-inset-top)); }
+@media (max-width: 960px) { .top { padding-top: calc(12px + env(safe-area-inset-top)); } }
+.save-bar { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }

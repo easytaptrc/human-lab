@@ -12,7 +12,7 @@ export async function render(el, ctx) {
   let n = await getNotifySettings();
   const state = { tab: "citas" };
   el.innerHTML = `
-    <div class="notice">${ICONS.bell}<p>Los recordatorios se pueden enviar <b>automáticamente</b> por correo (y WhatsApp si lo configuras) con las Cloud Functions incluidas en el proyecto. Desde aquí también puedes enviarlos manualmente con un clic.</p></div>
+    <div class="notice">${ICONS.bell}<p><b>Automático:</b> quien reserva y los socios que activaron notificaciones reciben un aviso en su teléfono 1 hora antes para confirmar (requiere las Cloud Functions y la clave de notificaciones en Configuración del sitio). La columna <b>Avisos</b> indica quién las tiene activadas. <b>Manual:</b> desde aquí también puedes enviar el recordatorio por WhatsApp con un clic.</p></div>
     <div class="cfg-tabs" id="tabs">${TABS.map(([k, l]) => `<button data-t="${k}" class="${k === state.tab ? "on" : ""}">${l}</button>`).join("")}</div>
     <div id="body">${loadingHTML}</div>`;
 
@@ -41,12 +41,13 @@ export async function render(el, ctx) {
         <label class="switch"><input type="checkbox" id="bn" ${store.get("hpl_browser_notify") ? "checked" : ""}> Avisarme en este navegador cuando haya que enviar un recordatorio</label>
       </div>
       <div class="panel"><div class="panel-head"><h2>Citas de hoy y mañana</h2><span class="muted">${due.length} por enviar ahora</span></div>
-      <div class="table-wrap">${list.length ? `<table class="t"><thead><tr><th>Cuándo</th><th>Cliente</th><th>Servicio</th><th>Asistencia</th><th>Recordatorio</th><th></th></tr></thead><tbody>
+      <div class="table-wrap">${list.length ? `<table class="t"><thead><tr><th>Cuándo</th><th>Cliente</th><th>Servicio</th><th>Asistencia</th><th>Avisos</th><th>Recordatorio</th><th></th></tr></thead><tbody>
         ${list.map((r) => `<tr data-id="${r.id}">
           <td class="nowrap"><b>${r.time}</b> <span class="muted">· ${r.date === today ? "hoy" : "mañana"}</span><br><small class="${r.mins <= 75 && r.mins >= 0 ? "gold" : "muted"}">${r.mins < 0 ? "en curso" : r.mins < 60 ? `en ${r.mins} min` : `en ${Math.floor(r.mins / 60)} h ${r.mins % 60} min`}</small></td>
           <td>${esc(r.name)}<br><small class="muted">${esc(r.phone)}</small></td>
           <td>${esc(r.serviceName)}</td>
           <td><span class="dot ${r.attendance === "confirmada" ? "" : r.attendance === "no_asistira" ? "dot-bad" : "dot-warn"}">${r.attendance === "confirmada" ? "Confirmó" : r.attendance === "no_asistira" ? "No asistirá" : "Por confirmar"}</span></td>
+          <td>${r.pushToken ? `<span class="badge badge-gold">${ICONS.bell} Activos</span>` : `<span class="muted">—</span>`}</td>
           <td>${r.reminderSent ? `<span class="badge badge-ok">Enviado</span>` : `<span class="badge">Pendiente</span>`}</td>
           <td><div class="actions"><a class="btn btn-sm ${r.mins <= 75 && !r.reminderSent ? "btn-gold" : ""}" data-wa target="_blank" rel="noopener" href="${waLink(r.phone, reminderText(ctx, n, r))}">${ICONS.whatsapp}<span>Enviar</span></a>
             <button class="icon-btn" data-copy title="Copiar enlace de confirmación">${ICONS.link}</button></div></td>

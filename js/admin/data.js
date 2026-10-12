@@ -16,13 +16,13 @@ export const MODULES = [
   { key: "inicio", label: "Inicio", icon: "home" },
   { key: "reservas", label: "Reservas", icon: "calendar" },
   { key: "socios", label: "Miembros", icon: "users" },
-  { key: "servicios", label: "Servicios y cupos", icon: "dumbbell" },
-  { key: "planes", label: "Planes y precios", icon: "tag" },
+  { key: "servicios", label: "Servicios y cupos", short: "Servicios", icon: "dumbbell" },
+  { key: "planes", label: "Planes y precios", short: "Planes", icon: "tag" },
   { key: "reportes", label: "Reportes", icon: "chart" },
   { key: "mensajes", label: "Mensajes", icon: "chat" },
   { key: "notificaciones", label: "Notificaciones", icon: "bell" },
-  { key: "sitio", label: "Configuración del sitio", icon: "palette", group: "Configuración" },
-  { key: "personal", label: "Personal y permisos", icon: "shield", group: "Configuración" },
+  { key: "sitio", label: "Configuración del sitio", short: "Mi sitio", icon: "palette", group: "Configuración" },
+  { key: "personal", label: "Personal y permisos", short: "Personal", icon: "shield", group: "Configuración" },
 ];
 
 export const NOTIFY_DEFAULTS = {

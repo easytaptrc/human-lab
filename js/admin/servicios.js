@@ -121,11 +121,18 @@ function editService(svc, onDone) {
           if (!f.name) { toast("Escribe el nombre del servicio.", "error"); return false; }
           const data = { name: f.name, description: f.description, durationMin: f.durationMin || 60, price: f.price || 0, order: f.order ?? 1, active: f.active, image, closedDates: closed, updatedAt: serverTimestamp() };
           try {
-            if (svc) await updateDoc(doc(db, "services", svc.id), data);
-            else await addDoc(collection(db, "services"), { ...data, slots: {}, createdAt: serverTimestamp() });
             invalidate("services");
-            toast("Servicio guardado.");
-            onDone();
+            if (svc) {
+              await updateDoc(doc(db, "services", svc.id), data);
+              toast("Servicio guardado.");
+              onDone();
+            } else {
+              const ref = await addDoc(collection(db, "services"), { ...data, slots: {}, schedule: [], createdAt: serverTimestamp() });
+              toast("Servicio creado. Ahora define sus horarios y cupos.");
+              onDone();
+              // Siguiente paso natural: horarios del servicio nuevo
+              setTimeout(() => editSchedule({ id: ref.id, ...data, slots: {}, schedule: [] }, onDone), 250);
+            }
           } catch (ex) {
             console.error(ex);
             toast("No se pudo guardar el servicio.", "error");
@@ -137,84 +144,114 @@ function editService(svc, onDone) {
   });
 }
 
+// ---------- Horarios y cupos (por bloques) ----------
+// Un bloque = días + primer horario + último horario + cada cuántos minutos + lugares.
+// Se guarda `schedule` (bloques, para editar) y `slots` (cada horario con su cupo, lo que usan las reservas).
+const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const toTime = (n) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+const DAY_SETS = [["Lun–Vie", [1, 2, 3, 4, 5]], ["Lun–Sáb", [1, 2, 3, 4, 5, 6]], ["Toda la semana", [1, 2, 3, 4, 5, 6, 0]], ["Sáb", [6]], ["Dom", [0]]];
+
+function blockTimes(b) {
+  const out = [];
+  if (!b.from || !b.to || !(b.every > 0)) return out;
+  for (let t = toMin(b.from); t <= toMin(b.to) && out.length < 96; t += Number(b.every)) out.push(toTime(t));
+  return out;
+}
+
+export function blocksToSlots(blocks) {
+  const slots = {};
+  for (const b of blocks) {
+    const cap = Math.max(1, Math.floor(Number(b.cap) || 1));
+    for (const d of b.days || []) for (const t of blockTimes(b)) slots[`${d}_${t}`] = cap;
+  }
+  return slots;
+}
+
+// Convierte horarios guardados con el editor anterior en bloques.
+function slotsToBlocks(slots = {}) {
+  const perDay = {};
+  for (const [k, cap] of Object.entries(slots)) (perDay[k[0]] ||= []).push({ t: k.slice(2), cap: Number(cap) });
+  const blocks = [];
+  for (const [d, list] of Object.entries(perDay)) {
+    list.sort((a, b) => a.t.localeCompare(b.t));
+    const gaps = list.slice(1).map((x, i) => toMin(x.t) - toMin(list[i].t));
+    const even = list.length === 1 || gaps.every((g) => g === gaps[0]);
+    const sameCap = list.every((x) => x.cap === list[0].cap);
+    const parts = even && sameCap
+      ? [{ from: list[0].t, to: list.at(-1).t, every: gaps[0] || 60, cap: list[0].cap }]
+      : list.map((x) => ({ from: x.t, to: x.t, every: 60, cap: x.cap }));
+    for (const p of parts) {
+      const same = blocks.find((b) => b.from === p.from && b.to === p.to && b.every === p.every && b.cap === p.cap);
+      if (same) same.days.push(Number(d)); else blocks.push({ ...p, days: [Number(d)] });
+    }
+  }
+  return blocks;
+}
+
 function editSchedule(svc, onDone) {
-  // Estructura de trabajo: { dow: [{time, cap}] }
-  const days = Object.fromEntries(WEEK.map((d) => [d, []]));
-  Object.entries(svc.slots || {}).forEach(([k, cap]) => { days[Number(k[0])]?.push({ time: k.slice(2), cap: Number(cap) }); });
+  let blocks = svc.schedule?.length ? structuredClone(svc.schedule) : slotsToBlocks(svc.slots);
+  if (!blocks.length) blocks = [{ days: [1, 2, 3, 4, 5], from: "07:00", to: "20:00", every: Number(svc.durationMin) || 60, cap: 5 }];
 
   openModal({
     title: `Horarios y cupos · ${svc.name}`,
     wide: true,
     body: `
-      <div class="gen">
-        <label class="field"><span>Desde</span><input class="input" type="time" id="gFrom" value="07:00"></label>
-        <label class="field"><span>Hasta</span><input class="input" type="time" id="gTo" value="20:00"></label>
-        <label class="field"><span>Cada (min)</span><input class="input" type="number" id="gEvery" value="60" min="15" step="15"></label>
-        <label class="field"><span>Lugares</span><input class="input" type="number" id="gCap" value="5" min="1"></label>
-        <div class="field"><span>Días</span><div class="dow-pick">${WEEK.map((d) => `<label><input type="checkbox" value="${d}" ${d >= 1 && d <= 5 ? "checked" : ""}><span>${DIAS[d][0]}</span></label>`).join("")}</div></div>
-        <button class="btn btn-sm" type="button" id="gen">Generar</button>
-      </div>
-      <p class="hint" style="margin:-4px 0 14px">“Generar” reemplaza los horarios de los días marcados. También puedes editar cada horario a mano.</p>
-      <div class="week" id="week"></div>`,
+      <p class="hint" style="margin:0 0 14px">Define bloques de horario. Ejemplo: <b>Lun–Vie</b>, primer horario <b>06:00</b>, último <b>21:00</b>, cada <b>60 min</b>, <b>5 lugares</b> por horario.</p>
+      <div class="blocks" id="blocks"></div>
+      <button type="button" class="add-slot add-block" id="addBlock">+ Agregar otro bloque (por ejemplo, sábados)</button>
+      <h4 class="form-sec">Así quedará la semana</h4>
+      <div class="week-sum" id="weekSum"></div>`,
     onMount(body) {
       const draw = () => {
-        body.querySelector("#week").innerHTML = WEEK.map((d) => `
-          <div class="day-col" data-dow="${d}">
-            <h4>${DIAS[d]} <button class="link" type="button" data-copy="${d}" title="Copiar este día a los demás">Copiar a todos</button></h4>
-            ${days[d].sort((a, b) => a.time.localeCompare(b.time)).map((s, i) => `
-              <div class="slot-row" data-i="${i}">
-                <input class="input" type="time" value="${s.time}" data-f="time">
-                <input class="input" type="number" min="1" value="${s.cap}" data-f="cap" title="Lugares">
-                <button type="button" data-rm title="Quitar">${ICONS.trash}</button>
-              </div>`).join("")}
-            <button class="add-slot" type="button" data-add>+ Horario</button>
-          </div>`).join("");
+        body.querySelector("#blocks").innerHTML = blocks.map((b, i) => {
+          const n = blockTimes(b).length;
+          return `
+          <div class="block" data-i="${i}">
+            <div class="block-top">
+              <div class="dow-pick">${WEEK.map((d) => `<label><input type="checkbox" data-day="${d}" ${b.days.includes(d) ? "checked" : ""}><span>${DIAS[d][0]}</span></label>`).join("")}</div>
+              <button type="button" class="icon-btn" data-rm title="Quitar bloque">${ICONS.trash}</button>
+            </div>
+            <div class="block-sets">${DAY_SETS.map(([l], j) => `<button type="button" class="link" data-set="${j}">${l}</button>`).join("")}</div>
+            <div class="block-grid">
+              <label class="field"><span>Primer horario</span><input class="input" type="time" data-f="from" value="${b.from}"></label>
+              <label class="field"><span>Último horario</span><input class="input" type="time" data-f="to" value="${b.to}"></label>
+              <label class="field"><span>Cada</span><select class="input" data-f="every">${[15, 20, 30, 45, 60, 75, 90, 120].map((v) => `<option value="${v}" ${Number(b.every) === v ? "selected" : ""}>${v} min</option>`).join("")}</select></label>
+              <label class="field"><span>Lugares</span><input class="input" type="number" min="1" data-f="cap" value="${b.cap}"></label>
+            </div>
+            <p class="block-info">${n ? `${n} horarios por día${b.days.length ? ` · ${n * b.cap * b.days.length} lugares por semana` : ""}` : "Revisa las horas: el último horario debe ser igual o después del primero."}${b.days.length ? "" : " · <b>Elige al menos un día.</b>"}</p>
+          </div>`;
+        }).join("");
+        const slots = blocksToSlots(blocks);
+        body.querySelector("#weekSum").innerHTML = WEEK.map((d) => {
+          const times = Object.keys(slots).filter((k) => Number(k[0]) === d).map((k) => k.slice(2)).sort();
+          return `<div class="ws-row"><b>${DIAS[d]}</b><span>${times.length ? `${times[0]} a ${times.at(-1)} · ${times.length} horarios` : `<span class="muted">Cerrado</span>`}</span></div>`;
+        }).join("");
       };
       draw();
-      const week = body.querySelector("#week");
-      week.addEventListener("input", (e) => {
-        const row = e.target.closest(".slot-row");
-        if (!row) return;
-        const d = Number(row.closest(".day-col").dataset.dow);
-        const item = days[d].sort((a, b) => a.time.localeCompare(b.time))[Number(row.dataset.i)];
-        if (e.target.dataset.f === "time") item.time = e.target.value;
-        else item.cap = Number(e.target.value);
+      const box = body.querySelector("#blocks");
+      box.addEventListener("change", (e) => {
+        const el = e.target.closest(".block");
+        if (!el) return;
+        const b = blocks[Number(el.dataset.i)];
+        if (e.target.dataset.day !== undefined) {
+          const d = Number(e.target.dataset.day);
+          b.days = e.target.checked ? [...new Set([...b.days, d])] : b.days.filter((x) => x !== d);
+        } else if (e.target.dataset.f) {
+          const f = e.target.dataset.f;
+          b[f] = f === "every" || f === "cap" ? Number(e.target.value) : e.target.value;
+        }
+        draw();
       });
-      week.addEventListener("change", (e) => { if (e.target.dataset.f === "time") draw(); });
-      week.addEventListener("click", (e) => {
-        const col = e.target.closest(".day-col");
-        if (!col) return;
-        const d = Number(col.dataset.dow);
-        if (e.target.closest("[data-add]")) {
-          const last = days[d].map((x) => x.time).sort().pop();
-          let next = "07:00";
-          if (last) { const [h, m] = last.split(":").map(Number); next = `${String(Math.min(23, h + 1)).padStart(2, "0")}:${String(m).padStart(2, "0")}`; }
-          days[d].push({ time: next, cap: days[d][0]?.cap || 5 });
-          draw();
-        }
-        if (e.target.closest("[data-rm]")) {
-          const i = Number(e.target.closest(".slot-row").dataset.i);
-          days[d].sort((a, b) => a.time.localeCompare(b.time)).splice(i, 1);
-          draw();
-        }
-        if (e.target.closest("[data-copy]")) {
-          WEEK.forEach((o) => { if (o !== d) days[o] = days[d].map((x) => ({ ...x })); });
-          draw();
-          toast(`Horarios de ${DIAS[d]} copiados a toda la semana.`);
-        }
+      box.addEventListener("click", (e) => {
+        const el = e.target.closest(".block");
+        if (!el) return;
+        const i = Number(el.dataset.i);
+        if (e.target.closest("[data-rm]")) { blocks.splice(i, 1); draw(); }
+        const set = e.target.closest("[data-set]");
+        if (set) { blocks[i].days = [...DAY_SETS[Number(set.dataset.set)][1]]; draw(); }
       });
-      body.querySelector("#gen").onclick = () => {
-        const from = body.querySelector("#gFrom").value;
-        const to = body.querySelector("#gTo").value;
-        const every = Math.max(15, Number(body.querySelector("#gEvery").value) || 60);
-        const cap = Math.max(1, Number(body.querySelector("#gCap").value) || 1);
-        const sel = [...body.querySelectorAll(".dow-pick input:checked")].map((i) => Number(i.value));
-        if (!from || !to || !sel.length) { toast("Completa el horario y elige días.", "error"); return; }
-        const [fh, fm] = from.split(":").map(Number);
-        const [th, tm] = to.split(":").map(Number);
-        const list = [];
-        for (let t = fh * 60 + fm; t <= th * 60 + tm; t += every) list.push({ time: `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`, cap });
-        sel.forEach((d) => { days[d] = list.map((x) => ({ ...x })); });
+      body.querySelector("#addBlock").onclick = () => {
+        blocks.push({ days: [6], from: "08:00", to: "13:00", every: Number(svc.durationMin) || 60, cap: blocks.at(-1)?.cap || 5 });
         draw();
       };
     },
@@ -224,10 +261,9 @@ function editSchedule(svc, onDone) {
         label: "Guardar horarios",
         cls: "btn-gold",
         onClick: async () => {
-          const slots = {};
-          for (const d of WEEK) for (const s of days[d]) if (s.time && s.cap > 0) slots[`${d}_${s.time}`] = Math.floor(s.cap);
+          const clean = blocks.filter((b) => b.days.length && blockTimes(b).length).map((b) => ({ days: [...b.days].sort(), from: b.from, to: b.to, every: Number(b.every), cap: Math.max(1, Math.floor(Number(b.cap) || 1)) }));
           try {
-            await updateDoc(doc(db, "services", svc.id), { slots, updatedAt: serverTimestamp() });
+            await updateDoc(doc(db, "services", svc.id), { schedule: clean, slots: blocksToSlots(clean), updatedAt: serverTimestamp() });
             invalidate("services");
             toast("Horarios y cupos guardados.");
             onDone();

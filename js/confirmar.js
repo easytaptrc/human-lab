@@ -1,5 +1,5 @@
 // Confirmación de asistencia desde el enlace del recordatorio (1 hora antes).
-// Enlace: confirmar.html?r=<idReserva>&t=<token>&s=<servicio>&d=<fecha>&h=<hora>
+// Enlace: confirmar.html?r=<idReserva>&t=<token>&s=<servicio>&d=<fecha>&h=<hora>[&a=confirmada|no_asistira]
 import { db, doc, updateDoc, serverTimestamp } from "./firebase.js";
 import { loadSite, markHTML } from "./site.js";
 import { $, esc, ICONS, fmtDate, waLink } from "./utils.js";
@@ -42,18 +42,24 @@ function result(ok, answer) {
     </div>`;
 }
 
-if (!r || !t) result(false);
-else ask();
-
-box.addEventListener("click", async (e) => {
-  const b = e.target.closest("[data-a]");
-  if (!b) return;
+async function answer(a) {
   box.querySelectorAll("button").forEach((x) => (x.disabled = true));
   try {
-    await updateDoc(doc(db, "reservations", r), { attendance: b.dataset.a, attendanceAt: serverTimestamp(), tokenCheck: t });
-    result(true, b.dataset.a);
+    await updateDoc(doc(db, "reservations", r), { attendance: a, attendanceAt: serverTimestamp(), tokenCheck: t });
+    result(true, a);
   } catch (ex) {
     console.error(ex);
     result(false);
   }
+}
+
+box.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-a]");
+  if (b) answer(b.dataset.a);
 });
+
+// Respuesta directa desde los botones de la notificación (a=confirmada | no_asistira)
+const direct = p.get("a");
+if (!r || !t) result(false);
+else if (["confirmada", "no_asistira"].includes(direct)) answer(direct);
+else ask();

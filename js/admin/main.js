@@ -1,11 +1,14 @@
 // Panel de administración y recepción: acceso, permisos por usuario y navegación.
-import { app, db, doc, getDoc, writeBatch, serverTimestamp, USE_EMULATORS } from "../firebase.js";
+import {
+  app, db, doc, getDoc, updateDoc, writeBatch, serverTimestamp, collection, query, where, onSnapshot, USE_EMULATORS,
+} from "../firebase.js";
+import { pushState, enablePush, refreshToken, localNotify, INSTALL_HINT } from "../push.js";
 import {
   getAuth, connectAuthEmulator, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { loadSite, startLoader, brandHTML } from "../site.js";
-import { $, esc, ICONS, toast } from "../utils.js";
+import { $, esc, ICONS, toast, todayStr, fmtDate } from "../utils.js";
 import { MODULES } from "./data.js";
 import { initials } from "./ui.js";
 
@@ -142,12 +145,88 @@ function buildShell() {
     <button class="user-btn" id="userBtn"><span class="av">${esc(initials(st.name))}</span><span class="user-name">${esc(st.name)}</span>${ICONS.chevron}</button>
     <div class="user-menu" id="userMenu" hidden>
       <div class="user-info"><b>${esc(st.name)}</b><small>${esc(st.position || (st.role === "owner" ? "Dueño" : "Personal"))}</small><small>${esc(st.email)}</small></div>
+      <button id="pushBtn">${ICONS.bell}<span id="pushLabel">Activar notificaciones</span></button>
       <button id="logoutBtn">${ICONS.logout}<span>Cerrar sesión</span></button>
     </div>`;
   $("#userBtn").onclick = (e) => { e.stopPropagation(); $("#userMenu").hidden = !$("#userMenu").hidden; };
   document.addEventListener("click", () => { const um = $("#userMenu"); if (um) um.hidden = true; });
   $("#logoutBtn").onclick = async () => { await signOut(auth); location.hash = ""; location.reload(); };
+  setupStaffPush();
+  watchReservations();
 }
+
+// ---------- Notificaciones del personal ----------
+async function saveStaffToken(token) {
+  const list = ctx.staff.pushTokens || [];
+  if (!token || list.includes(token)) return;
+  const next = [...list, token].slice(-10);
+  await updateDoc(doc(db, "staff", ctx.staff.uid), { pushTokens: next });
+  ctx.staff.pushTokens = next;
+}
+
+function setupStaffPush() {
+  const label = $("#pushLabel");
+  const btn = $("#pushBtn");
+  const paint = () => {
+    const st = pushState(s.vapidKey);
+    btn.hidden = st === "off";
+    label.textContent = { ready: "Notificaciones activadas ✓", denied: "Notificaciones bloqueadas", install: "Activar notificaciones" }[st] || "Activar notificaciones";
+  };
+  paint();
+  if (pushState(s.vapidKey) === "ready") refreshToken(s.vapidKey).then(saveStaffToken).catch(() => {});
+  btn.onclick = async (e) => {
+    e.stopPropagation();
+    const st = pushState(s.vapidKey);
+    if (st === "install") { toast(INSTALL_HINT, "warn"); return; }
+    if (st === "denied") { toast("Activa las notificaciones para este sitio en los ajustes del navegador.", "warn"); return; }
+    const t = await enablePush(s.vapidKey);
+    if (!t) { toast("No se activaron las notificaciones.", "warn"); return; }
+    try { await saveStaffToken(t); toast("Recibirás avisos de nuevas reservas en este dispositivo."); } catch (ex) { console.error(ex); }
+    paint();
+  };
+}
+
+// Aviso en vivo mientras el panel está abierto: nuevas reservas y confirmaciones de asistencia.
+let unwatch = null;
+function watchReservations() {
+  if (unwatch || !ctx.can("reservas")) return;
+  let first = true;
+  const seen = new Map(); // id → asistencia conocida
+  unwatch = onSnapshot(query(collection(db, "reservations"), where("date", ">=", todayStr())), (snap) => {
+    snap.docChanges().forEach((ch) => {
+      const r = ch.doc.data();
+      const before = seen.get(ch.doc.id);
+      seen.set(ch.doc.id, r.attendance);
+      if (first || ch.doc.metadata.hasPendingWrites) return;
+      const when = `${fmtDate(r.date)} · ${r.time}`;
+      let title = null;
+      if (ch.type === "added") title = "Nueva reserva";
+      else if (ch.type === "modified" && before !== r.attendance && r.attendance === "confirmada") title = "Asistencia confirmada";
+      else if (ch.type === "modified" && before !== r.attendance && r.attendance === "no_asistira") title = "Cliente no asistirá";
+      if (!title) return;
+      const body = `${r.name} · ${r.serviceName} · ${when}`;
+      toast(`${title}: ${body}`);
+      dispatchEvent(new CustomEvent("hpl:reserva"));
+      if (document.hidden) localNotify(title, body, "admin.html#reservas", `res-${ch.doc.id}`);
+    });
+    first = false;
+  }, (e) => console.warn("Avisos en vivo no disponibles:", e.code));
+}
+
+// En el teléfono las tablas se muestran como tarjetas: cada celda lleva el título de su columna.
+let labelQueued = false;
+function labelTables() {
+  labelQueued = false;
+  document.querySelectorAll("table.t").forEach((t) => {
+    const heads = [...t.querySelectorAll("thead th")].map((th) => th.textContent.trim());
+    t.querySelectorAll("tbody tr").forEach((tr) => [...tr.children].forEach((td, i) => {
+      if (td.dataset.label === undefined) td.dataset.label = heads[i] || "";
+    }));
+  });
+}
+new MutationObserver(() => {
+  if (!labelQueued) { labelQueued = true; requestAnimationFrame(labelTables); }
+}).observe(document.body, { childList: true, subtree: true });
 
 const toggleSide = (open) => document.body.classList.toggle("side-open", open);
 $("#menuBtn").addEventListener("click", () => toggleSide(true));
@@ -171,7 +250,8 @@ async function route() {
     history.replaceState(null, "", "#" + key);
   }
   document.querySelectorAll("#nav a[data-key]").forEach((a) => a.classList.toggle("active", a.dataset.key === key));
-  $("#pageTitle").textContent = PAGES[key][0];
+  // En el teléfono se usa el nombre corto del menú para que el título no se corte
+  $("#pageTitle").textContent = innerWidth < 640 ? (({ short, label }) => short || label)(MODULES.find((x) => x.key === key)) : PAGES[key][0];
   $("#pageSub").textContent = PAGES[key][1];
   document.title = `${PAGES[key][0]} · ${s.name}`;
   if (typeof cleanup === "function") cleanup();

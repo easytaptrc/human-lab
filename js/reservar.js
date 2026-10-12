@@ -1,10 +1,11 @@
-// Reserva de citas: servicio → fecha → hora → datos → confirmación.
-import { db, collection, doc, getDocs, query, where, runTransaction, serverTimestamp, Timestamp } from "./firebase.js";
+// Reserva de citas: servicio (con horarios inmediatos) → fecha → hora → datos → confirmación.
+import { db, collection, doc, getDocs, query, where, runTransaction, updateDoc, serverTimestamp, Timestamp } from "./firebase.js";
 import { loadSite, startLoader, brandHTML } from "./site.js";
 import {
-  $, $$, esc, ICONS, MESES, DIAS_CORTOS, todayStr, dateStr, addDays, dowOf, parseDate, startAt,
+  $, $$, esc, ICONS, MESES, DIAS, DIAS_CORTOS, MESES_CORTOS, todayStr, dateStr, addDays, dowOf, parseDate, startAt,
   fmtDate, fmtMoney, digits, waLink, portalKey, randomToken, toast, store,
 } from "./utils.js";
+import { pushState, enablePush, refreshToken, INSTALL_HINT } from "./push.js";
 
 const loader = startLoader({ min: 700 });
 const { s, m } = await loadSite({ media: ["logo"] });
@@ -23,9 +24,53 @@ $$("#form .input-icon").forEach((l) => {
 });
 
 const params = new URLSearchParams(location.search);
-const state = { step: 1, services: [], service: null, date: null, time: null, month: null };
+const state = { step: 1, services: [], service: null, date: null, time: null, month: null, used: {} };
+const QUICK_DAYS = 7; // días que se revisan para mostrar horarios inmediatos
 
-// ---------- Servicios ----------
+// ---------- Disponibilidad ----------
+const slotsOf = (svc) => svc.slots || {};
+const timesForDow = (svc, dow) =>
+  Object.entries(slotsOf(svc))
+    .filter(([k, cap]) => k.startsWith(dow + "_") && Number(cap) > 0)
+    .map(([k, cap]) => ({ time: k.slice(2), cap: Number(cap) }))
+    .sort((a, b) => a.time.localeCompare(b.time));
+
+const maxDate = () => addDays(todayStr(), Number(s.bookingDays) || 30);
+const usedKey = (sid, date, time) => `${sid}|${date}|${time}`;
+
+function dateOpen(svc, ds) {
+  if (!svc || ds < todayStr() || ds > maxDate()) return false;
+  if ((svc.closedDates || []).includes(ds)) return false;
+  return timesForDow(svc, dowOf(ds)).length > 0;
+}
+
+// Horarios de un día con lugares libres y si ya pasaron
+function dayTimes(svc, ds) {
+  const limit = Date.now() + (Number(s.minNoticeMin) || 0) * 60000;
+  return timesForDow(svc, dowOf(ds)).map(({ time, cap }) => {
+    const left = Math.max(0, cap - (state.used[usedKey(svc.id, ds, time)] || 0));
+    const past = startAt(ds, time).getTime() < limit;
+    return { time, cap, left, past, ok: left > 0 && !past };
+  });
+}
+
+async function loadUsed(from, to) {
+  try {
+    const snap = await getDocs(query(collection(db, "slots"), where("date", ">=", from), where("date", "<=", to)));
+    snap.forEach((d) => { const x = d.data(); state.used[usedKey(x.serviceId, x.date, x.time)] = x.count || 0; });
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+const dayLabel = (ds) => {
+  if (ds === todayStr()) return "Hoy";
+  if (ds === addDays(todayStr(), 1)) return "Mañana";
+  const d = parseDate(ds);
+  return `${DIAS[d.getDay()]} ${d.getDate()} ${MESES_CORTOS[d.getMonth()]}`;
+};
+
+// ---------- Paso 1: servicios con horarios inmediatos ----------
 async function loadServices() {
   try {
     const snap = await getDocs(query(collection(db, "services"), where("active", "==", true)));
@@ -39,48 +84,72 @@ async function loadServices() {
     $("#serviceList").innerHTML = `<div class="empty">Por ahora no hay servicios disponibles para reservar.</div>`;
     return;
   }
-  $("#serviceList").innerHTML = state.services.map((x) => `
-    <button class="service-opt" data-id="${esc(x.id)}">
-      <span class="service-thumb">${x.image ? `<img src="${esc(x.image)}" alt="">` : ICONS.dumbbell}</span>
-      <span class="service-name">${esc(x.name)}${x.durationMin || x.price ? `<small>${x.durationMin ? x.durationMin + " min" : ""}${x.durationMin && x.price ? " · " : ""}${x.price ? fmtMoney(x.price) : ""}</small>` : ""}</span>
-      ${ICONS.chevron}
-    </button>`).join("");
+  await loadUsed(todayStr(), addDays(todayStr(), QUICK_DAYS));
+  renderServices();
+}
+
+function renderServices() {
+  if (!state.services.length) return;
+  $("#serviceList").innerHTML = state.services.map((x) => {
+    let day = null;
+    let times = [];
+    for (let i = 0; i <= QUICK_DAYS; i++) {
+      const ds = addDays(todayStr(), i);
+      if (!dateOpen(x, ds)) continue;
+      const list = dayTimes(x, ds).filter((t) => t.ok);
+      if (list.length) { day = ds; times = list; break; }
+    }
+    const meta = [x.durationMin ? `${x.durationMin} min` : "", x.price ? fmtMoney(x.price) : ""].filter(Boolean).join(" · ");
+    return `
+    <article class="service-card" data-id="${esc(x.id)}">
+      <button class="service-opt" data-cal>
+        <span class="service-thumb">${x.image ? `<img src="${esc(x.image)}" alt="">` : ICONS.dumbbell}</span>
+        <span class="service-name">${esc(x.name)}${meta ? `<small>${meta}</small>` : ""}</span>
+        ${ICONS.chevron}
+      </button>
+      <div class="quick">
+        ${day ? `
+          <div class="quick-head"><span>${dayLabel(day)} · horarios disponibles</span></div>
+          <div class="chips">${times.map((t) => `<button class="chip" data-date="${day}" data-time="${t.time}"><b>${t.time}</b><small>${t.left} ${t.left === 1 ? "lugar" : "lugares"}</small></button>`).join("")}</div>`
+        : `<p class="quick-none">Sin horarios en los próximos días.</p>`}
+        <button class="quick-cal" data-cal>${ICONS.calendar}<span>Ver calendario y otras fechas</span>${ICONS.chevron}</button>
+      </div>
+    </article>`;
+  }).join("");
 }
 
 $("#serviceList").addEventListener("click", (e) => {
-  const b = e.target.closest(".service-opt");
-  if (!b) return;
-  selectService(b.dataset.id);
+  const card = e.target.closest(".service-card");
+  if (!card) return;
+  const chip = e.target.closest(".chip");
+  if (chip) {
+    setService(card.dataset.id);
+    state.date = chip.dataset.date;
+    state.time = chip.dataset.time;
+    go(4);
+    return;
+  }
+  if (e.target.closest("[data-cal]")) selectService(card.dataset.id);
 });
 
-function selectService(id) {
+function setService(id) {
   const svc = state.services.find((x) => x.id === id);
-  if (!svc) return;
+  if (!svc) return null;
   state.service = svc;
   state.date = state.time = null;
-  $$(".service-opt").forEach((b) => b.classList.toggle("sel", b.dataset.id === id));
+  return svc;
+}
+
+function selectService(id) {
+  if (!setService(id)) return;
   const first = firstAvailableDate();
   const base = first ? parseDate(first) : new Date();
   state.month = new Date(base.getFullYear(), base.getMonth(), 1);
   go(2);
 }
 
-// ---------- Calendario ----------
-const slotsOf = (svc) => svc.slots || {};
-const timesForDow = (svc, dow) =>
-  Object.entries(slotsOf(svc))
-    .filter(([k, cap]) => k.startsWith(dow + "_") && Number(cap) > 0)
-    .map(([k, cap]) => ({ time: k.slice(2), cap: Number(cap) }))
-    .sort((a, b) => a.time.localeCompare(b.time));
-
-const maxDate = () => addDays(todayStr(), Number(s.bookingDays) || 30);
-
-function dateEnabled(ds) {
-  const svc = state.service;
-  if (!svc || ds < todayStr() || ds > maxDate()) return false;
-  if ((svc.closedDates || []).includes(ds)) return false;
-  return timesForDow(svc, dowOf(ds)).length > 0;
-}
+// ---------- Paso 2: calendario ----------
+const dateEnabled = (ds) => dateOpen(state.service, ds);
 
 function firstAvailableDate() {
   for (let i = 0, d = todayStr(); i <= (Number(s.bookingDays) || 30); i++, d = addDays(d, 1)) if (dateEnabled(d)) return d;
@@ -88,6 +157,7 @@ function firstAvailableDate() {
 }
 
 function renderCalendar() {
+  if (!state.month) state.month = new Date(parseDate(state.date || todayStr()).setDate(1));
   const mo = state.month;
   $("#calLabel").textContent = `${MESES[mo.getMonth()]} ${mo.getFullYear()}`;
   const startDow = (mo.getDay() + 6) % 7; // semana inicia en lunes
@@ -103,8 +173,7 @@ function renderCalendar() {
   $("#calGrid").innerHTML = head + cells;
   const now = new Date();
   $("#calPrev").disabled = mo <= new Date(now.getFullYear(), now.getMonth(), 1);
-  const max = parseDate(maxDate());
-  $("#calNext").disabled = new Date(mo.getFullYear(), mo.getMonth() + 1, 1) > max;
+  $("#calNext").disabled = new Date(mo.getFullYear(), mo.getMonth() + 1, 1) > parseDate(maxDate());
 }
 
 $("#calPrev").addEventListener("click", () => { state.month.setMonth(state.month.getMonth() - 1); renderCalendar(); });
@@ -117,29 +186,17 @@ $("#calGrid").addEventListener("click", (e) => {
   go(3);
 });
 
-// ---------- Horarios ----------
+// ---------- Paso 3: horarios ----------
 async function renderTimes() {
   const svc = state.service;
   const box = $("#times");
   $("#timeSub").textContent = fmtDate(state.date, { long: true });
   box.innerHTML = `<div class="empty"><div class="spinner" style="margin:auto"></div></div>`;
-  const list = timesForDow(svc, dowOf(state.date));
-  const used = {};
-  try {
-    const snap = await getDocs(query(collection(db, "slots"), where("serviceId", "==", svc.id), where("date", "==", state.date)));
-    snap.forEach((d) => { used[d.data().time] = d.data().count || 0; });
-  } catch (e) {
-    console.warn(e);
-  }
-  const limit = Date.now() + (Number(s.minNoticeMin) || 0) * 60000;
-  box.innerHTML = list.map(({ time, cap }) => {
-    const left = Math.max(0, cap - (used[time] || 0));
-    const past = startAt(state.date, time).getTime() < limit;
-    const off = left === 0 || past;
-    return `<button class="time ${time === state.time ? "sel" : ""}" data-time="${time}" data-cap="${cap}" ${off ? "disabled" : ""}>
-      <b>${time}</b><small>${past ? "No disponible" : left === 0 ? "Lleno" : `${left} ${left === 1 ? "lugar" : "lugares"}`}</small>
-    </button>`;
-  }).join("") || `<div class="empty">No hay horarios para este día.</div>`;
+  await loadUsed(state.date, state.date);
+  box.innerHTML = dayTimes(svc, state.date).map((t) => `
+    <button class="time ${t.time === state.time ? "sel" : ""}" data-time="${t.time}" ${t.ok ? "" : "disabled"}>
+      <b>${t.time}</b><small>${t.past ? "No disponible" : t.left === 0 ? "Lleno" : `${t.left} ${t.left === 1 ? "lugar" : "lugares"}`}</small>
+    </button>`).join("") || `<div class="empty">No hay horarios para este día.</div>`;
 }
 
 $("#times").addEventListener("click", (e) => {
@@ -149,11 +206,18 @@ $("#times").addEventListener("click", (e) => {
   go(4);
 });
 
-// ---------- Datos y confirmación ----------
+// ---------- Paso 4: datos ----------
 const form = $("#form");
 const saved = store.get("hpl_cliente", {});
 for (const k of ["name", "phone", "email", "age", "emergency", "memberId"]) if (saved[k]) form[k].value = saved[k];
 if (params.get("socio")) form.memberId.value = params.get("socio");
+
+// Opción de recordatorio por notificación
+const push = pushState(s.vapidKey);
+if (push === "ask" || push === "ready") $("#pushOpt").hidden = false;
+if (push === "install") { $("#pushHint").hidden = false; $("#pushHint").textContent = `¿Quieres que te avisemos 1 hora antes? ${INSTALL_HINT}`; }
+if (push === "denied") { $("#pushHint").hidden = false; $("#pushHint").textContent = "Las notificaciones están bloqueadas en este navegador. Actívalas en los ajustes del sitio si quieres recibir el aviso 1 hora antes."; }
+if (push === "ready") refreshToken(s.vapidKey);
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -164,9 +228,12 @@ form.addEventListener("submit", async (e) => {
   btn.disabled = true;
   btn.firstElementChild.textContent = "Reservando…";
   try {
-    const res = await book(f);
+    // Primero el permiso de notificaciones (el navegador exige que sea justo después del toque)
+    let pushToken = "";
+    if (!$("#pushOpt").hidden && form.push.checked) pushToken = (await enablePush(s.vapidKey)) || "";
+    const res = await book(f, pushToken);
     store.set("hpl_cliente", { name: f.name, phone: f.phone, email: f.email, age: f.age, emergency: f.emergency, memberId: f.memberId });
-    showDone(res, f);
+    showDone(res, f, pushToken);
   } catch (ex) {
     console.error(ex);
     if (ex.message === "FULL") {
@@ -191,11 +258,12 @@ function validate(f) {
   return null;
 }
 
-async function book(f) {
+async function book(f, pushToken) {
   const svc = state.service;
   const { date, time } = state;
   const dow = dowOf(date);
   const cap = Number(slotsOf(svc)[`${dow}_${time}`]);
+  if (!cap) throw new Error("FULL");
   const slotRef = doc(db, "slots", `${svc.id}__${date}__${time}`);
   const resRef = doc(collection(db, "reservations"));
   const memberId = f.memberId.trim().toUpperCase();
@@ -227,6 +295,7 @@ async function book(f) {
       status: "confirmada",
       attendance: "pendiente",
       token,
+      pushToken,
       reminderSent: false,
       source: "web",
       createdAt: serverTimestamp(),
@@ -237,6 +306,7 @@ async function book(f) {
       });
     }
   });
+  state.used[usedKey(svc.id, date, time)] = (state.used[usedKey(svc.id, date, time)] || 0) + 1;
   return { id: resRef.id, token };
 }
 
@@ -254,7 +324,30 @@ function icsFile(res) {
   return URL.createObjectURL(new Blob([body], { type: "text/calendar" }));
 }
 
-function showDone(res, f) {
+function renderPushBox(res, pushToken) {
+  const box = $("#pushBox");
+  const st = pushState(s.vapidKey);
+  if (pushToken) {
+    box.hidden = false;
+    box.innerHTML = `${ICONS.bell}<p><b>Recordatorio activado.</b> Te avisaremos en este teléfono 1 hora antes para que confirmes tu asistencia.</p>`;
+  } else if (st === "ask" || st === "ready") {
+    box.hidden = false;
+    box.innerHTML = `${ICONS.bell}<p>Recibe un aviso 1 hora antes para confirmar tu asistencia.</p><button class="btn btn-sm btn-gold" id="pushNow">Activar aviso</button>`;
+    $("#pushNow").onclick = async () => {
+      const t = await enablePush(s.vapidKey);
+      if (!t) { toast("No se activaron las notificaciones. Revisa los permisos del navegador.", "warn"); return; }
+      try {
+        await updateDoc(doc(db, "reservations", res.id), { pushToken: t, tokenCheck: res.token });
+        renderPushBox(res, t);
+      } catch (e) { console.error(e); toast("No pudimos activar el aviso.", "error"); }
+    };
+  } else if (st === "install") {
+    box.hidden = false;
+    box.innerHTML = `${ICONS.bell}<p>${INSTALL_HINT}</p>`;
+  } else box.hidden = true;
+}
+
+function showDone(res, f, pushToken) {
   const folio = res.id.slice(0, 6).toUpperCase();
   $("#doneCard").innerHTML = `
     <div class="done-row"><span>Folio</span><b>${folio}</b></div>
@@ -262,6 +355,7 @@ function showDone(res, f) {
     <div class="done-row"><span>Fecha</span><b>${fmtDate(state.date, { long: true })}</b></div>
     <div class="done-row"><span>Hora</span><b>${state.time}</b></div>
     <div class="done-row"><span>Nombre</span><b>${esc(f.name)}</b></div>`;
+  renderPushBox(res, pushToken);
   $("#doneActions").innerHTML = `
     <a class="btn btn-block" href="${icsFile(res)}" download="reserva-human-prime-lab.ics">${ICONS.calendar}<span>Agregar a mi calendario</span></a>
     ${s.whatsapp ? `<a class="btn btn-block" target="_blank" rel="noopener" href="${waLink(s.whatsapp, `Hola, acabo de reservar ${state.service.name} el ${fmtDate(state.date, { long: true })} a las ${state.time}. Folio ${folio}. Nombre: ${f.name}`)}">${ICONS.whatsapp}<span>Enviar al gimnasio</span></a>` : ""}
@@ -292,6 +386,7 @@ function go(step) {
   });
   $("#stepper").hidden = step === 5;
   $("#backBtn").hidden = step === 1 || step === 5;
+  if (step === 1) renderServices();
   if (step === 2) renderCalendar();
   if (step === 3) renderTimes();
   renderSummary();
