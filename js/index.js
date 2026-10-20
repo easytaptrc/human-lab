@@ -4,6 +4,7 @@ import { loadSite, startLoader, brandHTML } from "./site.js";
 import { $, esc, ICONS, digits, waLink, fmtMoney, toast } from "./utils.js";
 import { pushState, enablePush, disablePush, shouldPrompt, markPrompted, INSTALL_HINT } from "./push.js";
 import { sheet } from "./sheet.js";
+import { openInstallGuide, isStandalone } from "./install-guide.js";
 
 const loader = startLoader({ min: 2200 });
 const { s, m } = await loadSite();
@@ -33,7 +34,7 @@ $("#drawerLinks").innerHTML = [
   s.showServicios && `<a href="#servicios" data-close>Servicios</a>`,
   s.showContacto && `<a href="#contacto" data-close>Contacto</a>`,
   s.showRecomienda && `<a href="#" data-share>${esc(s.btnRecomienda)}</a>`,
-  `<a href="#" data-install hidden>Instalar app</a>`,
+  `<a href="#" data-install>Descargar app</a>`,
 ].filter(Boolean).join("");
 $("#drawerSocials").innerHTML = socialsHTML();
 const toggleDrawer = (open) => {
@@ -63,7 +64,7 @@ $("#heroContent").innerHTML = `
     ${s.showReserva ? `<a class="btn btn-gold btn-block btn-xl" href="reservar.html">${ICONS.calendar}<span>${esc(s.btnReserva)}</span><span class="btn-chev">${ICONS.chevron}</span></a>` : ""}
     ${s.showMiembro ? `<a class="btn btn-block btn-xl" href="miembro.html">${ICONS.user}<span>${esc(s.btnMiembro)}</span><span class="btn-chev">${ICONS.chevron}</span></a>` : ""}
     ${s.showRecomienda ? `<button class="btn btn-sm btn-recomienda" data-share>${ICONS.share}<span>${esc(s.btnRecomienda)}</span>${ICONS.chevron}</button>` : ""}
-    <button class="btn btn-sm btn-ghost btn-install" data-install hidden>${ICONS.plus}<span>Instalar app</span></button>
+    <button class="btn btn-sm btn-install" data-install><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Descargar app</span></button>
   </div>
   <div class="hero-foot">
     <div class="socials">${socialsHTML()}</div>
@@ -142,25 +143,13 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// Instalar la app web (Android: aviso nativo · iPhone: instrucciones)
-let installEvent = null;
-const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-const showInstall = (on) => document.querySelectorAll("[data-install]").forEach((b) => { b.hidden = !on; });
-if (!standalone && ios) showInstall(true);
-addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; showInstall(true); });
-addEventListener("appinstalled", () => showInstall(false));
-document.addEventListener("click", async (e) => {
+// Descargar la app: guía con mini video según el dispositivo (se oculta si ya está instalada)
+document.querySelectorAll("[data-install]").forEach((b) => { b.hidden = isStandalone(); });
+document.addEventListener("click", (e) => {
   if (!e.target.closest("[data-install]")) return;
   e.preventDefault();
-  if (installEvent) {
-    installEvent.prompt();
-    await installEvent.userChoice.catch(() => {});
-    installEvent = null;
-    showInstall(false);
-  } else if (ios) {
-    toast("Toca el botón Compartir de Safari y elige “Agregar a inicio”.", "ok");
-  }
+  drawer.classList.remove("open");
+  openInstallGuide({ name: s.name, label: "Human Prime", icon: "assets/icons/icon-192.png" });
 });
 
 const header = $("#header");

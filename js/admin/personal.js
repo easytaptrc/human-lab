@@ -7,9 +7,9 @@ import { MODULES } from "./data.js";
 import { openModal, formData, avatar, loadingHTML } from "./ui.js";
 
 const ROLES = [
-  ["Recepción", ["inicio", "reservas", "socios", "notificaciones"]],
-  ["Coach", ["inicio", "reservas"]],
-  ["Gerente", ["inicio", "reservas", "socios", "servicios", "planes", "reportes", "mensajes", "notificaciones"]],
+  ["Recepción", ["inicio", "acceso", "reservas", "socios", "notificaciones"]],
+  ["Coach", ["inicio", "acceso", "reservas"]],
+  ["Gerente", ["inicio", "acceso", "reservas", "socios", "servicios", "planes", "reportes", "mensajes", "notificaciones"]],
   ["Administrador", MODULES.map((m) => m.key)],
 ];
 

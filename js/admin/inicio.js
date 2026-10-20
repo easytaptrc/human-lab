@@ -1,7 +1,8 @@
 // Inicio del panel: resumen según los permisos del usuario.
 import { db, collection, getDocs, query, where } from "../firebase.js";
 import { $, esc, ICONS, todayStr, fmtDate } from "../utils.js";
-import { getAll, memberState, daysInactive } from "./data.js";
+import { getAll, memberState, daysInactive, daysToBirthday, ageFrom } from "./data.js";
+import { waLink } from "../utils.js";
 import { avatar } from "./ui.js";
 import { STATUS, ATTENDANCE } from "./reservas.js";
 
@@ -19,6 +20,7 @@ export async function render(el, ctx) {
   const expiring = members.filter((mb) => memberState(mb, today).key === "porvencer");
   const fresh = members.filter((mb) => (mb.joinDate || "").startsWith(month));
   const inactive = members.filter((mb) => (daysInactive(mb, today) ?? 0) > 45);
+  const birthdays = members.map((mb) => ({ mb, d: daysToBirthday(mb.birthDate, today) })).filter((x) => x.d !== null && x.d <= 7).sort((a, b) => a.d - b.d);
   const todayRes = res.filter((r) => r.status !== "cancelada").sort((a, b) => a.time.localeCompare(b.time));
 
   const stat = (icon, label, value, hint, href) =>
@@ -51,6 +53,14 @@ export async function render(el, ctx) {
           }).join("")}</tbody></table>` : `<div class="empty">Aún no hay socios.</div>`}</div>
       </div>` : ""}
     </div>
+    ${canS && birthdays.length ? `<div class="panel">
+      <div class="panel-head"><h2>🎂 Cumpleaños de la semana</h2><a href="#socios?f=cumple">Ver del mes</a></div>
+      <div class="table-wrap"><table class="t"><thead><tr><th>Socio</th><th>Cuándo</th><th>Cumple</th><th></th></tr></thead><tbody>
+        ${birthdays.map(({ mb, d }) => `<tr><td><div class="who">${avatar(mb.name)}${esc(mb.name)}</div></td>
+          <td>${d === 0 ? '<span class="badge badge-gold">¡Hoy!</span>' : d === 1 ? "Mañana" : `En ${d} días`}</td>
+          <td>${(ageFrom(mb.birthDate) ?? 0) + (d === 0 ? 0 : 1)} años</td>
+          <td><div class="actions">${mb.phone ? `<a class="icon-btn" target="_blank" rel="noopener" title="Felicitar por WhatsApp" href="${waLink(mb.phone, `¡Feliz cumpleaños ${mb.name.split(" ")[0]}! 🎉 Todo el equipo de Human Prime Lab te desea un gran año.`)}">${ICONS.whatsapp}</a>` : ""}</div></td></tr>`).join("")}
+      </tbody></table></div></div>` : ""}
     ${!canR && !canS ? `<div class="panel"><div class="panel-body">Bienvenido, ${esc(ctx.staff.name)}. Usa el menú para ir a tus secciones.</div></div>` : ""}`;
 
   el.addEventListener("click", (e) => {

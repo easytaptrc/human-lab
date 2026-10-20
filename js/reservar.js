@@ -1,11 +1,13 @@
 // Reserva de citas: servicio (con horarios inmediatos) → fecha → hora → datos → confirmación.
-import { db, collection, doc, getDocs, query, where, runTransaction, updateDoc, serverTimestamp, Timestamp } from "./firebase.js";
+import { db, collection, doc, getDoc, getDocs, query, where, runTransaction, updateDoc, serverTimestamp, Timestamp } from "./firebase.js";
 import { loadSite, startLoader, brandHTML } from "./site.js";
 import {
   $, $$, esc, ICONS, MESES, DIAS, DIAS_CORTOS, MESES_CORTOS, todayStr, dateStr, addDays, dowOf, parseDate, startAt,
-  fmtDate, fmtMoney, digits, waLink, portalKey, randomToken, toast, store,
+  fmtDate, fmtMoney, digits, waLink, portalKey, randomToken, toast, store, sha256,
 } from "./utils.js";
 import { pushState, enablePush, refreshToken, INSTALL_HINT } from "./push.js";
+import { newPassCode } from "./qr.js";
+import { renderPass, memberStatus } from "./pass.js";
 
 const loader = startLoader({ min: 700 });
 const { s, m } = await loadSite({ media: ["logo"] });
@@ -212,6 +214,56 @@ const saved = store.get("hpl_cliente", {});
 for (const k of ["name", "phone", "email", "age", "emergency", "memberId"]) if (saved[k]) form[k].value = saved[k];
 if (params.get("socio")) form.memberId.value = params.get("socio");
 
+// ---------- Socio: sus datos se llenan solos ----------
+const SESSION = "hpl_socio"; // misma sesión que el panel de miembros
+const MEMBER_FIELDS = ["name", "phone", "email", "age", "emergency"];
+let member = null;
+
+async function loadMember(key) {
+  try {
+    const snap = await getDoc(doc(db, "portal", key));
+    return snap.exists() ? { key, ...snap.data() } : null;
+  } catch { return null; }
+}
+
+function applyMember(m) {
+  member = m;
+  const vals = { name: m.name, phone: m.phone, email: m.email, age: m.age, emergency: m.emergency };
+  for (const k of MEMBER_FIELDS) {
+    if (vals[k] != null && vals[k] !== "") form[k].value = vals[k];
+    // Solo se muestran los datos que falten
+    form[k].closest("label").hidden = !!form[k].value;
+  }
+  form.memberId.value = m.memberId;
+  $("#memberIdField").hidden = true;
+  $("#memberLogin").hidden = true;
+  const card = $("#memberCard");
+  card.hidden = false;
+  card.innerHTML = `${ICONS.user}<div><b>Reservando como ${esc(m.name)}</b><small>Socio ${esc(m.memberId)} · tus datos ya están guardados</small></div><button type="button" class="link" id="notMe">No soy yo</button>`;
+  $("#notMe").onclick = () => {
+    member = null;
+    store.del(SESSION);
+    for (const k of [...MEMBER_FIELDS, "memberId"]) { form[k].value = ""; form[k].closest("label").hidden = false; }
+    card.hidden = true;
+    $("#memberLogin").hidden = false;
+  };
+}
+
+$("#memberLoginBtn").onclick = () => { $("#memberLoginForm").hidden = !$("#memberLoginForm").hidden; $("#mlId").focus(); };
+$("#mlGo").onclick = async () => {
+  const id = $("#mlId").value.trim().toUpperCase();
+  const last4 = digits($("#mlLast4").value);
+  if (!id || last4.length !== 4) { toast("Escribe tu ID y los últimos 4 dígitos de tu teléfono.", "error"); return; }
+  const m = await loadMember(await sha256(`${id}|${last4}`));
+  if (!m) { toast("No encontramos un socio con esos datos.", "error"); return; }
+  store.set(SESSION, m.key);
+  applyMember(m);
+  toast(`¡Hola ${m.name.split(" ")[0]}! Ya llenamos tus datos.`);
+};
+
+const savedSession = store.get(SESSION);
+if (savedSession) loadMember(savedSession).then((m) => { if (m) applyMember(m); });
+
 // Opción de recordatorio por notificación
 const push = pushState(s.vapidKey);
 if (push === "ask" || push === "ready") $("#pushOpt").hidden = false;
@@ -266,9 +318,10 @@ async function book(f, pushToken) {
   if (!cap) throw new Error("FULL");
   const slotRef = doc(db, "slots", `${svc.id}__${date}__${time}`);
   const resRef = doc(collection(db, "reservations"));
-  const memberId = f.memberId.trim().toUpperCase();
-  const pKey = memberId ? await portalKey(memberId, f.phone) : null;
+  const memberId = (member?.memberId || f.memberId).trim().toUpperCase();
+  const pKey = member?.key || (memberId ? await portalKey(memberId, f.phone) : null);
   const token = randomToken();
+  const passCode = newPassCode(); // número aleatorio del QR de la reserva
 
   await runTransaction(db, async (tx) => {
     const slot = await tx.get(slotRef);
@@ -295,6 +348,7 @@ async function book(f, pushToken) {
       status: "confirmada",
       attendance: "pendiente",
       token,
+      passCode,
       pushToken,
       reminderSent: false,
       source: "web",
@@ -307,7 +361,7 @@ async function book(f, pushToken) {
     }
   });
   state.used[usedKey(svc.id, date, time)] = (state.used[usedKey(svc.id, date, time)] || 0) + 1;
-  return { id: resRef.id, token };
+  return { id: resRef.id, token, passCode };
 }
 
 function icsFile(res) {
@@ -356,6 +410,13 @@ function showDone(res, f, pushToken) {
     <div class="done-row"><span>Hora</span><b>${state.time}</b></div>
     <div class="done-row"><span>Nombre</span><b>${esc(f.name)}</b></div>`;
   renderPushBox(res, pushToken);
+  // Pase de acceso: si es socio, su pase de socio; si es persona nueva, el pase de la reserva
+  const passBox = $("#passBox");
+  if (member) {
+    renderPass(passBox, { kind: "member", key: member.key, name: member.name, memberId: member.memberId, ...memberStatus(member, todayStr()), until: member.endDate }, s, m);
+  } else {
+    renderPass(passBox, { kind: "reservation", id: res.id, token: res.token, code: res.passCode, name: f.name.trim(), service: state.service.name, date: state.date, time: state.time }, s, m);
+  }
   $("#doneActions").innerHTML = `
     <a class="btn btn-block" href="${icsFile(res)}" download="reserva-human-prime-lab.ics">${ICONS.calendar}<span>Agregar a mi calendario</span></a>
     ${s.whatsapp ? `<a class="btn btn-block" target="_blank" rel="noopener" href="${waLink(s.whatsapp, `Hola, acabo de reservar ${state.service.name} el ${fmtDate(state.date, { long: true })} a las ${state.time}. Folio ${folio}. Nombre: ${f.name}`)}">${ICONS.whatsapp}<span>Enviar al gimnasio</span></a>` : ""}

@@ -110,8 +110,8 @@ export async function render(el) {
     if (t) { state.tab = t.dataset.t; draw(); }
   });
   $("#csvM", el).onclick = () => downloadCSV(`socios-${todayStr()}.csv`, [
-    ["ID", "Nombre", "Teléfono", "Correo", "Edad", "Emergencia", "Plan", "Inicio", "Vence", "Estado", "Última visita", "Visitas"],
-    ...members.map((mb) => [mb.memberId, mb.name, mb.phone, mb.email, mb.age, mb.emergency, mb.plan, mb.startDate, mb.endDate, memberState(mb).label, mb.lastVisit, mb.visits || 0]),
+    ["ID", "Nombre", "Teléfono", "Correo", "Nacimiento", "Edad", "Emergencia", "Planes", "Inicio", "Vence", "Estado", "Última visita", "Visitas"],
+    ...members.map((mb) => [mb.memberId, mb.name, mb.phone, mb.email, mb.birthDate || "", mb.age, mb.emergency, mb.plan, mb.startDate, mb.endDate, memberState(mb).label, mb.lastVisit, mb.visits || 0]),
   ]);
   $("#csvR", el).onclick = () => downloadCSV(`reservas-${todayStr()}.csv`, [
     ["Fecha", "Hora", "Servicio", "Nombre", "Teléfono", "Correo", "Edad", "Emergencia", "Observaciones", "Socio", "Estado", "Asistencia"],

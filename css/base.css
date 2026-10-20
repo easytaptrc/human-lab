@@ -203,3 +203,101 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .sheet-actions { display: flex; gap: 10px; margin-top: 22px; }
 .sheet-actions .btn { flex: 1; min-height: 48px; padding: 0 12px; }
 @media (min-width: 640px) { .sheet { align-items: center; } }
+
+/* ---------- Guía "Descargar app" (mini video animado) ---------- */
+.guide-box { position: relative; width: min(460px, 100%); max-height: calc(100svh - 24px); overflow-y: auto; }
+.guide-close { position: absolute; top: 10px; right: 10px; color: var(--muted); }
+.guide-tabs { display: flex; gap: 6px; justify-content: center; margin: 16px 0 14px; }
+.guide-tabs button { border: 1px solid var(--line-2); background: transparent; color: var(--muted); border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
+.guide-tabs button.on { border-color: var(--gold); color: var(--gold); background: rgba(var(--gold-rgb), .1); }
+.guide-stage { display: grid; place-items: center; padding: 6px 0; }
+.guide-device { position: relative; background: #050505; border: 2px solid #2b2b2b; overflow: hidden; box-shadow: 0 20px 50px rgba(0, 0, 0, .55), inset 0 0 0 4px #111; }
+.guide-device.is-phone { width: 196px; height: 360px; border-radius: 30px; }
+.guide-device.is-phone::before { content: ""; position: absolute; top: 8px; left: 50%; translate: -50% 0; width: 60px; height: 14px; border-radius: 10px; background: #000; z-index: 5; }
+.guide-device.is-pc { width: 300px; height: 196px; border-radius: 10px; }
+.g-screen { position: absolute; inset: 4px; border-radius: inherit; overflow: hidden; background: #0d0d0d; animation: gIn .45s ease both; font-family: var(--font); color: #ddd; text-align: left; }
+.is-phone .g-screen { border-radius: 26px; padding-top: 26px; }
+@keyframes gIn { from { opacity: .4; transform: scale(.98); } }
+.g-bar { display: flex; align-items: center; gap: 6px; margin: 0 8px; padding: 6px 8px; background: #1d1d1d; border-radius: 10px; font-size: 9px; }
+.g-url { flex: 1; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 8.5px; }
+.g-dots { font-size: 14px; line-height: 1; color: #eee; }
+.g-site { padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
+.g-hero { height: 92px; border-radius: 10px; background: linear-gradient(135deg, #2a241c, #0f0f0f 70%), #111; position: relative; }
+.g-hero::after { content: ""; position: absolute; left: 12px; bottom: 12px; width: 50%; height: 8px; border-radius: 4px; background: rgba(var(--gold-rgb), .7); }
+.g-line { height: 7px; border-radius: 4px; background: #262626; }
+.g-line.w70 { width: 70%; } .g-line.w50 { width: 50%; }
+.g-btn { margin-top: 4px; padding: 7px; border-radius: 8px; background: var(--gold); color: #15110b; font-size: 8.5px; font-weight: 700; text-align: center; letter-spacing: .1em; text-transform: uppercase; }
+.g-menu { position: absolute; top: 50px; right: 8px; width: 120px; background: #262626; border-radius: 10px; padding: 4px 0; box-shadow: 0 10px 30px rgba(0, 0, 0, .6); animation: gIn .3s ease both; }
+.g-menu p, .g-sheet p { margin: 0; padding: 7px 10px; font-size: 9.5px; display: flex; align-items: center; gap: 5px; }
+.g-menu svg, .g-sheet svg { width: 11px; height: 11px; }
+.g-screen .hl { color: var(--gold); font-weight: 700; background: rgba(var(--gold-rgb), .14); }
+.g-dialog { position: absolute; left: 50%; top: 52%; translate: -50% -50%; width: 150px; padding: 14px 12px 10px; border-radius: 14px; background: #262626; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 16px 40px rgba(0, 0, 0, .7); animation: gIn .3s ease both; }
+.g-dialog img { width: 34px; height: 34px; border-radius: 9px; }
+.g-dialog b { font-size: 10.5px; }
+.g-dialog small { font-size: 8.5px; color: #999; text-align: center; }
+.g-dialog div { display: flex; gap: 6px; width: 100%; margin-top: 6px; }
+.g-dialog div span { flex: 1; text-align: center; font-size: 9px; padding: 6px 0; border-radius: 6px; background: #333; }
+.g-dialog div span.hl { background: var(--gold); color: #15110b; }
+.g-pop-right { left: auto; right: 10px; top: 34px; translate: 0 0; width: 140px; }
+.g-safari { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; align-items: center; padding: 8px 6px 14px; background: #1a1a1a; font-size: 13px; color: #6aa8ff; }
+.g-share svg { width: 15px; height: 15px; color: #6aa8ff; }
+.g-sheet { position: absolute; left: 6px; right: 6px; bottom: 6px; background: #262626; border-radius: 14px; padding: 6px 0; animation: gUp .35s ease both; }
+@keyframes gUp { from { transform: translateY(30px); opacity: .4; } }
+.g-add { padding: 4px 10px; }
+.g-add > div { display: flex; justify-content: space-between; align-items: center; font-size: 9px; padding: 6px 0 12px; }
+.g-add > div .hl { background: none; color: #6aa8ff; }
+.g-add p { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px; background: #1d1d1d; border-radius: 10px; font-size: 10.5px; }
+.g-add img { width: 36px; height: 36px; border-radius: 9px; }
+.g-home { position: absolute; inset: 0; padding: 40px 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 10px; align-content: start; background: radial-gradient(circle at 30% 20%, #3a2f22, #0b0b0b 70%); }
+.g-app { width: 34px; height: 34px; border-radius: 9px; background: rgba(255, 255, 255, .12); justify-self: center; }
+.g-mine { background: none; display: flex; flex-direction: column; align-items: center; gap: 3px; width: auto; height: auto; }
+.g-mine img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 0 0 2px rgba(var(--gold-rgb), .7); }
+.g-mine small, .g-deskicon small { font-size: 7.5px; color: #fff; white-space: nowrap; }
+.pop { animation: gPop .7s cubic-bezier(.2, 1.6, .4, 1) .25s both; }
+@keyframes gPop { from { transform: scale(0); opacity: 0; } }
+.g-win { position: absolute; inset: 0; background: #0d0d0d; }
+.g-winbar { display: flex; align-items: center; gap: 4px; padding: 6px 8px; background: #1d1d1d; }
+.g-winbar i { width: 6px; height: 6px; border-radius: 50%; background: #444; }
+.g-winbar .g-url { margin-left: 6px; padding: 3px 8px; background: #111; border-radius: 6px; }
+.g-inst { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; color: var(--gold); }
+.g-inst svg { width: 11px; height: 11px; }
+.g-desk { position: absolute; inset: 0; background: linear-gradient(135deg, #1b2735, #0b0b0b); }
+.g-deskicon { position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.g-deskicon img { width: 30px; height: 30px; border-radius: 7px; }
+.g-mini { inset: 30px 16px 14px 60px; border-radius: 6px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, .6); animation: gIn .5s ease .4s both; }
+.g-mini .g-hero { height: 50px; }
+.g-tap { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: rgba(255, 255, 255, .35); border: 2px solid #fff; z-index: 6; animation: gTap 1.4s ease-in-out .5s infinite both; pointer-events: none; }
+@keyframes gTap { 0% { transform: scale(1.6); opacity: 0; } 30% { transform: scale(1); opacity: 1; } 45% { transform: scale(.75); } 60% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.8); opacity: 0; } }
+.guide-dots { display: flex; justify-content: center; gap: 6px; margin-top: 14px; }
+.guide-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); cursor: pointer; }
+.guide-dots span.on { background: var(--gold); width: 20px; border-radius: 4px; }
+.guide-cap { min-height: 3.2em; margin: 12px 0 0 !important; color: var(--text) !important; font-size: 13.5px; }
+.guide-cap b { color: var(--gold); }
+
+/* ---------- Pase de acceso (estilo Wallet) ---------- */
+.pass { position: relative; border-radius: 20px; padding: 18px 18px 16px; background: linear-gradient(160deg, #1b1712, #0b0b0b 55%); border: 1px solid rgba(var(--gold-rgb), .45); box-shadow: 0 24px 60px rgba(0, 0, 0, .55); overflow: hidden; text-align: left; }
+.pass::after { content: ""; position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: radial-gradient(rgba(var(--gold-rgb), .18), transparent 70%); pointer-events: none; }
+.pass-top { display: flex; align-items: center; gap: 10px; }
+.pass-logo .logo-mark { width: 26px; height: auto; }
+.pass-top div { display: flex; flex-direction: column; line-height: 1.1; flex: 1; }
+.pass-top b { font-family: var(--font-display); font-weight: 800; font-size: 12px; letter-spacing: .08em; }
+.pass-top i { font-style: normal; font-family: var(--font-display); font-weight: 300; font-size: 9px; letter-spacing: .5em; color: var(--gold); }
+.pass-kind { font-family: var(--font-display); font-size: 9px; letter-spacing: .2em; padding: 4px 9px; border-radius: 999px; border: 1px solid rgba(var(--gold-rgb), .6); color: var(--gold); }
+.pass-name { margin-top: 18px; }
+.pass-name span, .pass-fields span { display: block; font-family: var(--font-display); font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.pass-name b { display: block; font-size: 21px; font-weight: 600; margin-top: 3px; }
+.pass-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+.pass-fields b { display: block; font-size: 13px; font-weight: 600; margin-top: 3px; word-break: break-word; }
+.pass-fields b.ok { color: var(--ok); }
+.pass-fields b.bad { color: var(--bad); }
+.pass-qr { margin: 18px auto 0; width: 210px; padding: 12px; background: #fff; border-radius: 14px; text-align: center; }
+.pass-qr svg { width: 100%; height: auto; display: block; }
+.pass-qr small { display: block; margin-top: 6px; color: #111; font-family: ui-monospace, monospace; font-size: 12px; letter-spacing: .14em; font-weight: 700; }
+.pass-note { margin: 12px 0 0 !important; text-align: center; font-size: 12px !important; color: var(--muted); }
+.wallet-row { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.wallet-btn { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; border-radius: 12px; background: #000; border: 1px solid #3a3a3a; color: #fff; text-decoration: none; font-weight: 600; font-size: 15px; }
+.wallet-btn span { display: flex; flex-direction: column; line-height: 1.1; text-align: left; }
+.wallet-btn small { font-size: 10px; font-weight: 400; color: #bbb; }
+.wallet-btn.google { background: #1f1f1f; }
+.wallet-btn.ghost { background: transparent; }
+.wallet-btn:hover { border-color: var(--gold); }

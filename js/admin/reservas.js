@@ -7,7 +7,9 @@ import { $, esc, ICONS, todayStr, addDays, dowOf, startAt, fmtDate, digits, waLi
 import { getAll, confirmLink, getNotifySettings } from "./data.js";
 import { openModal, confirmDialog, formData, loadingHTML } from "./ui.js";
 import { openMemberForm, checkIn } from "./socios.js";
+import { newPassCode } from "../qr.js";
 
+export { setStatus, assignMember };
 export const STATUS = {
   confirmada: ["Confirmada", "badge-gold"],
   asistio: ["Asistió", "badge-ok"],
@@ -295,7 +297,7 @@ async function manualBooking(ctx, services, date, onDone) {
                 startAt: Timestamp.fromDate(startAt(f.date, f.time)),
                 name: f.name, phone: digits(f.phone), email: (f.email || "").toLowerCase(), age: f.age || 0,
                 emergency: digits(f.emergency), notes: f.notes, memberId: mb?.memberId || "", memberIdTyped: "",
-                status: "confirmada", attendance: "pendiente", token: randomToken(), reminderSent: false,
+                status: "confirmada", attendance: "pendiente", token: randomToken(), passCode: newPassCode(), reminderSent: false,
                 source: "recepcion", by: ctx.staff.name, createdAt: serverTimestamp(),
               });
             });

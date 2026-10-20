@@ -91,3 +91,18 @@
 .done-row span { color: var(--muted); }
 .done-row b { font-weight: 500; text-align: right; }
 .done-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+
+/* Socio: datos guardados */
+.member-card { display: flex; align-items: center; gap: 12px; margin: 16px 0 4px; padding: 14px 16px; border: 1px solid rgba(var(--gold-rgb), .5); background: rgba(var(--gold-rgb), .07); border-radius: 12px; }
+.member-card > svg { width: 24px; height: 24px; color: var(--gold); flex: none; }
+.member-card div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.member-card b { font-weight: 600; font-size: 14.5px; }
+.member-card small { color: var(--muted); font-size: 12.5px; }
+.member-card .link { color: var(--muted); font-size: 12.5px; text-decoration: underline; background: none; border: 0; cursor: pointer; }
+.member-login { margin: 16px 0 4px; }
+.member-login-btn { width: 100%; text-align: left; padding: 12px 14px; border: 1px dashed rgba(var(--gold-rgb), .5); border-radius: 10px; background: transparent; color: var(--gold); font-size: 13px; cursor: pointer; }
+.member-login-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; }
+@media (max-width: 480px) { .member-login-form { grid-template-columns: 1fr 1fr; } .member-login-form .btn { grid-column: 1 / -1; } }
+.step > .member-card + .member-login, .step > .member-login + form { margin-top: 12px; }
+.pass-title { margin-top: 28px !important; }
+.done-pass { margin-top: 14px; text-align: left; }

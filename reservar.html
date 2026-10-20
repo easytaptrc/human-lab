@@ -74,6 +74,15 @@
     <!-- Paso 4 -->
     <section class="step" data-panel="4" hidden>
       <h1 class="step-title">Tus datos</h1>
+      <div class="member-card" id="memberCard" hidden></div>
+      <div class="member-login" id="memberLogin">
+        <button type="button" class="member-login-btn" id="memberLoginBtn"><span>¿Ya eres socio? Entra con tu ID y no vuelvas a escribir tus datos</span></button>
+        <div class="member-login-form" id="memberLoginForm" hidden>
+          <input class="input" id="mlId" placeholder="ID de socio (ej. K7M2Q9)" autocapitalize="characters">
+          <input class="input" id="mlLast4" placeholder="Últimos 4 dígitos de tu teléfono" inputmode="numeric" maxlength="4">
+          <button type="button" class="btn btn-sm btn-gold" id="mlGo">Entrar</button>
+        </div>
+      </div>
       <form id="form" class="form" novalidate>
         <label class="input-icon"><span class="sr">Nombre completo</span><svg></svg><input class="input" name="name" placeholder="Nombre completo" autocomplete="name" required minlength="3" maxlength="100"></label>
         <label class="input-icon"><span class="sr">Teléfono</span><svg></svg><input class="input" name="phone" placeholder="Teléfono (10 dígitos)" inputmode="tel" autocomplete="tel" required></label>
@@ -83,7 +92,7 @@
           <label class="input-icon"><span class="sr">Número de emergencia</span><svg></svg><input class="input" name="emergency" placeholder="Número de emergencia" inputmode="tel" required></label>
         </div>
         <label class="field"><span>Observaciones (opcional)</span><textarea class="input" name="notes" maxlength="600" placeholder="¿Alguna enfermedad, lesión o condición que debamos saber?"></textarea></label>
-        <label class="field"><span>ID de socio (si ya tienes uno)</span><input class="input" name="memberId" placeholder="Ej. HPL-0001" maxlength="20" autocapitalize="characters"></label>
+        <label class="field" id="memberIdField"><span>ID de socio (si ya tienes uno)</span><input class="input" name="memberId" placeholder="Ej. K7M2Q9" maxlength="20" autocapitalize="characters"></label>
         <label class="check push-opt" id="pushOpt" hidden><input type="checkbox" name="push" checked><span>Avisarme en este teléfono 1 hora antes para confirmar mi asistencia</span></label>
         <p class="push-hint" id="pushHint" hidden></p>
         <button class="btn btn-gold btn-block" type="submit" id="submitBtn"><span>Confirmar reserva</span><span class="btn-chev"></span></button>
@@ -97,6 +106,8 @@
       <h1 class="step-title">¡Reserva confirmada!</h1>
       <p class="step-sub">Guardamos tu lugar. Te esperamos.</p>
       <div class="card done-card" id="doneCard"></div>
+      <h2 class="step-title pass-title">Tu pase de acceso</h2>
+      <div class="done-pass" id="passBox"></div>
       <div class="push-box" id="pushBox" hidden></div>
       <div class="done-actions" id="doneActions"></div>
     </section>

@@ -39,6 +39,8 @@ export const DEFAULTS = {
   bookingDays: 30,
   minNoticeMin: 30,
   vapidKey: "", // Firebase → Configuración del proyecto → Cloud Messaging → Certificados push web
+  walletGoogle: false, // se activan al guardar las credenciales en Configuración → Wallet
+  walletApple: false,
 };
 
 export const DEFAULT_MEDIA = { logo: "", logoFull: "", hero: "assets/img/portada.jpg" };

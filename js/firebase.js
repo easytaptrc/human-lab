@@ -14,6 +14,9 @@ export const firebaseConfig = {
   measurementId: "G-K54R37RQ4R"
 };
 
+// Servicio que genera las tarjetas de Apple Wallet y Google Wallet (Cloud Function "wallet")
+export const WALLET_URL = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/wallet`;
+
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 

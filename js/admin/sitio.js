@@ -4,7 +4,7 @@ import { $, esc, ICONS, toast, compressImage } from "../utils.js";
 import { DEFAULTS, DEFAULT_MEDIA, applyTheme } from "../site.js";
 import { logoMark } from "../logo.js";
 
-const TABS = [["marca", "Marca y logos"], ["portada", "Portada"], ["botones", "Botones y secciones"], ["contacto", "Contacto y redes"], ["colores", "Colores"], ["reservas", "Reservas y avisos"]];
+const TABS = [["marca", "Marca y logos"], ["portada", "Portada"], ["botones", "Botones y secciones"], ["contacto", "Contacto y redes"], ["colores", "Colores"], ["reservas", "Reservas y avisos"], ["wallet", "Wallet"]];
 const PRESETS = [
   ["Original", { gold: "#ad8a5c", bg: "#0a0a0a", surface: "#141414", text: "#ece8e2" }],
   ["Oro claro", { gold: "#c9a46a", bg: "#0b0b0c", surface: "#161618", text: "#f1ede6" }],
@@ -113,6 +113,25 @@ export async function render(el, ctx) {
         <button type="button" class="btn btn-gold btn-sm">${esc(s.btnReserva)}</button>
         <button type="button" class="btn btn-sm">${esc(s.btnMiembro)}</button>
       </div>`,
+    wallet: () => ctx.staff.role !== "owner" ? `<p class="hint" style="margin:0">Solo el dueño puede configurar Apple Wallet y Google Wallet.</p>` : `
+      <p class="hint" style="margin-top:0">Con esto, quien reserva y cada socio pueden guardar su pase (nombre, logo, QR y estado activo/inactivo) en la cartera de su teléfono. Las claves se guardan de forma privada: nadie puede volver a leerlas, solo el servidor.</p>
+      <h4 class="form-sec">Google Wallet ${s.walletGoogle ? '<span class="badge badge-ok">Activo</span>' : '<span class="badge">Sin configurar</span>'}</h4>
+      <div class="form-grid" id="gw">
+        <label class="field"><span>Issuer ID (ID de emisor)</span><input class="input" id="gwIssuer" placeholder="3388000000012345678"></label>
+        <label class="field span-2"><span>Clave JSON de la cuenta de servicio</span><div class="img-actions" style="flex-direction:row;align-items:center"><label class="btn btn-sm">${ICONS.link}<span>Subir archivo .json</span><input type="file" accept=".json,application/json" id="gwKey"></label><small class="muted" id="gwKeyName">Ningún archivo</small></div></label>
+      </div>
+      <p class="hint">Google Pay & Wallet Console → Wallet API → copia tu Issuer ID. En Google Cloud (proyecto easynegocio-6659a) crea una cuenta de servicio, descarga su clave JSON y agrégala como usuario en la Wallet Console.</p>
+      <button type="button" class="btn btn-sm btn-gold" id="gwSave">Guardar Google Wallet</button>
+      <h4 class="form-sec">Apple Wallet ${s.walletApple ? '<span class="badge badge-ok">Activo</span>' : '<span class="badge">Sin configurar</span>'}</h4>
+      <div class="form-grid">
+        <label class="field"><span>Team ID</span><input class="input" id="apTeam" placeholder="ABCDE12345"></label>
+        <label class="field"><span>Pass Type ID</span><input class="input" id="apType" placeholder="pass.com.humanprimelab.acceso"></label>
+        <label class="field"><span>Certificado del pase (.p12)</span><div class="img-actions" style="flex-direction:row;align-items:center"><label class="btn btn-sm">${ICONS.link}<span>Subir .p12</span><input type="file" accept=".p12,.pfx" id="apP12"></label><small class="muted" id="apP12Name">Ningún archivo</small></div></label>
+        <label class="field"><span>Contraseña del .p12</span><input class="input" id="apPass" type="password" autocomplete="new-password"></label>
+        <label class="field span-2"><span>Certificado WWDR de Apple (.cer)</span><div class="img-actions" style="flex-direction:row;align-items:center"><label class="btn btn-sm">${ICONS.link}<span>Subir .cer</span><input type="file" accept=".cer,.pem" id="apWwdr"></label><small class="muted" id="apWwdrName">Ningún archivo</small></div></label>
+      </div>
+      <p class="hint">Requiere cuenta de Apple Developer. Certificates, IDs & Profiles → Identifiers → Pass Type IDs → crea uno y genera su certificado; expórtalo desde Llavero como .p12. El WWDR (G4) se descarga de apple.com/certificateauthority.</p>
+      <button type="button" class="btn btn-sm btn-gold" id="apSave">Guardar Apple Wallet</button>`,
     reservas: () => `
       <div class="form-grid">
         ${inp("bookingDays", "Días hacia adelante para reservar", { type: "number" })}
@@ -124,7 +143,50 @@ export async function render(el, ctx) {
       <p class="hint">Firebase Console → ⚙ Configuración del proyecto → Cloud Messaging → Certificados push web → “Generar par de claves”. Copia la clave y pégala aquí. Sin esta clave no se muestran las opciones de notificación.</p>`,
   };
 
-  const draw = () => { $("#form", el).innerHTML = forms[tab](); };
+  const readFile = (input, asText) => new Promise((resolve, reject) => {
+    const f = input.files[0];
+    if (!f) return resolve(null);
+    const r = new FileReader();
+    r.onerror = reject;
+    r.onload = () => resolve(asText ? r.result : String(r.result).split(",")[1]);
+    if (asText) r.readAsText(f); else r.readAsDataURL(f);
+  });
+  const bindWallet = () => {
+    const f = $("#form", el);
+    for (const [inp, lbl] of [["gwKey", "gwKeyName"], ["apP12", "apP12Name"], ["apWwdr", "apWwdrName"]]) {
+      f.querySelector("#" + inp)?.addEventListener("change", (e) => { f.querySelector("#" + lbl).textContent = e.target.files[0]?.name || "Ningún archivo"; });
+    }
+    f.querySelector("#gwSave")?.addEventListener("click", async () => {
+      const issuerId = f.querySelector("#gwIssuer").value.trim();
+      const keyText = await readFile(f.querySelector("#gwKey"), true);
+      let key;
+      try { key = JSON.parse(keyText || ""); } catch { /* inválido */ }
+      if (!/^d{10,}$/.test(issuerId) || !key?.private_key || !key?.client_email) { toast("Escribe el Issuer ID (solo números) y sube el archivo JSON de la cuenta de servicio.", "error"); return; }
+      try {
+        await setDoc(doc(db, "private", "wallet"), { google: { issuerId, clientEmail: key.client_email, privateKey: key.private_key }, updatedAt: serverTimestamp() }, { merge: true });
+        await setDoc(doc(db, "settings", "site"), { walletGoogle: true }, { merge: true });
+        s.walletGoogle = ctx.s.walletGoogle = true;
+        toast("Google Wallet configurado.");
+        draw();
+      } catch (ex) { console.error(ex); toast("No se pudo guardar (solo el dueño puede hacerlo).", "error"); }
+    });
+    f.querySelector("#apSave")?.addEventListener("click", async () => {
+      const teamId = f.querySelector("#apTeam").value.trim();
+      const passTypeId = f.querySelector("#apType").value.trim();
+      const p12 = await readFile(f.querySelector("#apP12"));
+      const wwdr = await readFile(f.querySelector("#apWwdr"));
+      const p12Password = f.querySelector("#apPass").value;
+      if (!/^[A-Z0-9]{10}$/.test(teamId) || !passTypeId.startsWith("pass.") || !p12 || !wwdr) { toast("Completa Team ID (10 caracteres), Pass Type ID (empieza con pass.) y sube los dos certificados.", "error"); return; }
+      try {
+        await setDoc(doc(db, "private", "wallet"), { apple: { teamId, passTypeId, p12, p12Password, wwdr }, updatedAt: serverTimestamp() }, { merge: true });
+        await setDoc(doc(db, "settings", "site"), { walletApple: true }, { merge: true });
+        s.walletApple = ctx.s.walletApple = true;
+        toast("Apple Wallet configurado.");
+        draw();
+      } catch (ex) { console.error(ex); toast("No se pudo guardar (solo el dueño puede hacerlo).", "error"); }
+    });
+  };
+  const draw = () => { $("#form", el).innerHTML = forms[tab](); if (tab === "wallet") bindWallet(); };
   draw();
 
   $("#tabs", el).onclick = (e) => {

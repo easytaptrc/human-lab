@@ -3,6 +3,7 @@ import { db, doc, getDoc, updateDoc, collection, getDocs, query, where } from ".
 import { loadSite, startLoader, brandHTML } from "./site.js";
 import { $, esc, ICONS, todayStr, daysBetween, fmtDate, parseDate, MESES_CORTOS, waLink, sha256, store, toast, digits } from "./utils.js";
 import { pushState, enablePush, refreshToken, INSTALL_HINT } from "./push.js";
+import { renderPass, memberStatus } from "./pass.js";
 
 const loader = startLoader({ min: 700 });
 const { s, m } = await loadSite({ media: ["logo", "hero"] });
@@ -95,6 +96,18 @@ async function showProfile(key, p) {
     </div>
     ${s.whatsapp && (!active || (left !== null && left <= 5)) ? `<a class="btn btn-gold btn-block" target="_blank" rel="noopener" href="${waLink(s.whatsapp, `Hola, soy ${p.name} (ID ${p.memberId}). Quiero ${none ? "contratar" : "renovar"} mi membresía.`)}">${ICONS.whatsapp}<span>${none ? "Contratar membresía" : "Renovar membresía"}</span></a>` : ""}
 
+    ${(p.plans || []).length > 1 || (p.plans || []).some((e) => e.visitsTotal != null) ? `
+    <div class="block-head"><span class="eyebrow">Mis planes</span></div>
+    <div class="res-list">${p.plans.map((e) => {
+      const ok = e.endDate >= today && (e.visitsLeft == null || e.visitsLeft > 0);
+      return `<div class="res card"><div class="res-info"><b>${esc(e.plan)}</b>
+        <span class="dot ${ok ? "" : "dot-bad"}">${ok ? "Vigente" : e.visitsLeft === 0 ? "Sin visitas" : "Vencido"} · vence ${fmtDate(e.endDate)}</span>
+        ${e.visitsTotal != null ? `<span>${ICONS.check}${e.visitsLeft ?? 0} de ${e.visitsTotal} visitas restantes</span>` : ""}</div></div>`;
+    }).join("")}</div>` : ""}
+
+    <div class="block-head"><span class="eyebrow">Mi pase de acceso</span></div>
+    <div id="memberPass"></div>
+
     <div class="push-card card" id="pushCard" hidden></div>
 
     <div class="block-head"><span class="eyebrow">Mis próximas reservas</span><a href="reservar.html?socio=${encodeURIComponent(p.memberId)}">Reservar ${ICONS.chevron}</a></div>
@@ -120,6 +133,7 @@ async function showProfile(key, p) {
       <button class="btn btn-block btn-ghost" id="logout">${ICONS.logout}<span>Cerrar sesión</span></button>
     </div>`;
   renderPush(key, p);
+  renderPass($("#memberPass"), { kind: "member", key, name: p.name, memberId: p.memberId, ...memberStatus(p, today), until: p.endDate }, s, m);
   $("#logout").addEventListener("click", () => {
     store.del(SESSION);
     box.hidden = true;

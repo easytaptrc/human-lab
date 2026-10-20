@@ -3,6 +3,7 @@ import {
   app, db, doc, getDoc, updateDoc, writeBatch, serverTimestamp, collection, query, where, onSnapshot, USE_EMULATORS,
 } from "../firebase.js";
 import { pushState, enablePush, refreshToken, localNotify, INSTALL_HINT } from "../push.js";
+import { openInstallGuide, isStandalone } from "../install-guide.js";
 import {
   getAuth, connectAuthEmulator, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence,
@@ -20,6 +21,8 @@ await setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 const PAGES = {
   inicio: ["Panel de administración", "Gestión integral de miembros, reservas y servicios."],
+  acceso: ["Escanear acceso", "Recepción: escanea el pase de socios y reservas."],
+  acceso: ["Escanear acceso", "Recepción: escanea el pase de socios y reservas."],
   reservas: ["Reservas", "Agenda del día, asistencia y cupos por servicio."],
   socios: ["Miembros", "Registro de socios, ID, mensualidades y asistencia."],
   servicios: ["Servicios y cupos", "Secciones del gimnasio, horarios y lugares disponibles."],
@@ -139,7 +142,8 @@ function buildShell() {
     let head = "";
     if (x.group && x.group !== group) { group = x.group; head = `<span class="nav-group">${esc(group)}</span>`; }
     return `${head}<a href="#${x.key}" data-key="${x.key}">${ICONS[x.icon]}<span>${esc(x.label)}</span></a>`;
-  }).join("") + `<a href="index.html" target="_blank" rel="noopener" class="nav-ext">${ICONS.eye}<span>Ver sitio</span></a>`;
+  }).join("") + `<a href="index.html" target="_blank" rel="noopener" class="nav-ext">${ICONS.eye}<span>Ver sitio</span></a>`
+    + (isStandalone() ? "" : `<a href="#" class="nav-install" data-install-admin><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Descargar app del admin</span></a>`);
   const st = ctx.staff;
   $("#user").innerHTML = `
     <button class="user-btn" id="userBtn"><span class="av">${esc(initials(st.name))}</span><span class="user-name">${esc(st.name)}</span>${ICONS.chevron}</button>
@@ -231,7 +235,13 @@ new MutationObserver(() => {
 const toggleSide = (open) => document.body.classList.toggle("side-open", open);
 $("#menuBtn").addEventListener("click", () => toggleSide(true));
 $("#scrim").addEventListener("click", () => toggleSide(false));
-$("#nav").addEventListener("click", (e) => { if (e.target.closest("a")) toggleSide(false); });
+$("#nav").addEventListener("click", (e) => {
+  if (e.target.closest("[data-install-admin]")) {
+    e.preventDefault();
+    openInstallGuide({ name: "Human Prime Lab · Administración", label: "HPL Admin", icon: "assets/icons/admin-192.png", admin: true });
+  }
+  if (e.target.closest("a")) toggleSide(false);
+});
 
 // ---------- Rutas ----------
 let cleanup = null;
