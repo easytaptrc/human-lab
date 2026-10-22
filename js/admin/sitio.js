@@ -4,7 +4,7 @@ import { $, esc, ICONS, toast, compressImage } from "../utils.js";
 import { DEFAULTS, DEFAULT_MEDIA, applyTheme } from "../site.js";
 import { logoMark } from "../logo.js";
 
-const TABS = [["marca", "Marca y logos"], ["portada", "Portada"], ["botones", "Botones y secciones"], ["contacto", "Contacto y redes"], ["colores", "Colores"], ["reservas", "Reservas y avisos"], ["wallet", "Wallet"]];
+const TABS = [["marca", "Marca y logos"], ["portada", "Portada"], ["botones", "Botones y secciones"], ["contacto", "Contacto y redes"], ["colores", "Colores"], ["reservas", "Reservas y avisos"]]; // Wallet en pausa: agregar ["wallet", "Wallet"] para volver a mostrarlo
 const PRESETS = [
   ["Original", { gold: "#ad8a5c", bg: "#0a0a0a", surface: "#141414", text: "#ece8e2" }],
   ["Oro claro", { gold: "#c9a46a", bg: "#0b0b0c", surface: "#161618", text: "#f1ede6" }],
@@ -161,7 +161,7 @@ export async function render(el, ctx) {
       const keyText = await readFile(f.querySelector("#gwKey"), true);
       let key;
       try { key = JSON.parse(keyText || ""); } catch { /* inválido */ }
-      if (!/^d{10,}$/.test(issuerId) || !key?.private_key || !key?.client_email) { toast("Escribe el Issuer ID (solo números) y sube el archivo JSON de la cuenta de servicio.", "error"); return; }
+      if (!/^\d{10,}$/.test(issuerId) || !key?.private_key || !key?.client_email) { toast("Escribe el Issuer ID (solo números) y sube el archivo JSON de la cuenta de servicio.", "error"); return; }
       try {
         await setDoc(doc(db, "private", "wallet"), { google: { issuerId, clientEmail: key.client_email, privateKey: key.private_key }, updatedAt: serverTimestamp() }, { merge: true });
         await setDoc(doc(db, "settings", "site"), { walletGoogle: true }, { merge: true });

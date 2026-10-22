@@ -73,7 +73,9 @@
 
     <!-- Paso 4 -->
     <section class="step" data-panel="4" hidden>
-      <h1 class="step-title">Tus datos</h1>
+      <h1 class="step-title">Tus reservas</h1>
+      <div class="cart" id="cart"></div>
+      <h2 class="step-title cart-data-title">Tus datos</h2>
       <div class="member-card" id="memberCard" hidden></div>
       <div class="member-login" id="memberLogin">
         <button type="button" class="member-login-btn" id="memberLoginBtn"><span>¿Ya eres socio? Entra con tu ID y no vuelvas a escribir tus datos</span></button>
@@ -95,8 +97,8 @@
         <label class="field" id="memberIdField"><span>ID de socio (si ya tienes uno)</span><input class="input" name="memberId" placeholder="Ej. K7M2Q9" maxlength="20" autocapitalize="characters"></label>
         <label class="check push-opt" id="pushOpt" hidden><input type="checkbox" name="push" checked><span>Avisarme en este teléfono 1 hora antes para confirmar mi asistencia</span></label>
         <p class="push-hint" id="pushHint" hidden></p>
-        <button class="btn btn-gold btn-block" type="submit" id="submitBtn"><span>Confirmar reserva</span><span class="btn-chev"></span></button>
-        <p class="fine">Una hora antes de tu cita te pediremos que confirmes tu asistencia.</p>
+        <button class="btn btn-gold btn-block" type="submit" id="submitBtn"><span id="submitLabel">Confirmar reserva</span><span class="btn-chev"></span></button>
+        <p class="fine confirm-warn">⚠ Una hora antes de tu cita te pediremos que <b>confirmes tu asistencia desde la app</b>. Si no confirmas en los siguientes 15 minutos, tu lugar quedará libre.</p>
       </form>
     </section>
 
@@ -108,6 +110,7 @@
       <div class="card done-card" id="doneCard"></div>
       <h2 class="step-title pass-title">Tu pase de acceso</h2>
       <div class="done-pass" id="passBox"></div>
+      <div class="confirm-alert" id="confirmAlert"><b>⚠ Recuerda confirmar tu asistencia</b><p>Te avisaremos 1 hora antes de cada cita. Confírmala desde la app o tu lugar quedará libre 15 minutos después del primer aviso.</p></div>
       <div class="push-box" id="pushBox" hidden></div>
       <div class="done-actions" id="doneActions"></div>
     </section>

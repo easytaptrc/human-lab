@@ -1,6 +1,6 @@
 // Service worker: app instalable, funciona sin conexión y recibe notificaciones push.
 // Estrategia "red primero": siempre muestra la versión más nueva y usa la copia guardada solo sin internet.
-const CACHE = "hpl-v5";
+const CACHE = "hpl-v6";
 const SHELL = [
   "./", "./index.html", "./reservar.html", "./miembro.html", "./confirmar.html", "./admin.html",
   "./css/base.css", "./css/index.css", "./css/reservar.css", "./css/miembro.css", "./css/admin.css",

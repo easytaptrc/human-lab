@@ -117,3 +117,5 @@ body.ready .hero-content > *:nth-child(4) { animation-delay: .3s; }
 .bell.on { color: var(--gold); }
 .bell.on::after { content: ""; position: absolute; top: 9px; right: 10px; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--bg); }
 .bell:disabled { opacity: .5; }
+.btn-mypass { min-height: 54px; border-color: rgba(var(--gold-rgb), .6); color: var(--gold); }
+.btn-mypass svg { width: 20px; height: 20px; }

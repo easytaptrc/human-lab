@@ -204,6 +204,7 @@ function watchReservations() {
       if (first || ch.doc.metadata.hasPendingWrites) return;
       const when = `${fmtDate(r.date)} · ${r.time}`;
       let title = null;
+      if (ch.type === "added" && r.source === "recepcion" && r.by === ctx.staff.name) return; // la acaba de capturar este mismo usuario
       if (ch.type === "added") title = "Nueva reserva";
       else if (ch.type === "modified" && before !== r.attendance && r.attendance === "confirmada") title = "Asistencia confirmada";
       else if (ch.type === "modified" && before !== r.attendance && r.attendance === "no_asistira") title = "Cliente no asistirá";

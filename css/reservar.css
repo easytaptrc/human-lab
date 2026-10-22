@@ -106,3 +106,30 @@
 .step > .member-card + .member-login, .step > .member-login + form { margin-top: 12px; }
 .pass-title { margin-top: 28px !important; }
 .done-pass { margin-top: 14px; text-align: left; }
+
+/* Lista de reservas (varios días) */
+.cart { margin-top: 14px; }
+.cart-list { display: flex; flex-direction: column; gap: 8px; }
+.cart-item { display: flex; align-items: center; gap: 12px; padding: 10px 8px 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.cart-item div { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.cart-item b { font-size: 14px; font-weight: 600; }
+.cart-item small { color: var(--muted); font-size: 12.5px; }
+.cart-item .icon-btn { width: 34px; height: 34px; color: var(--muted); }
+.cart-item .icon-btn svg { width: 16px; height: 16px; }
+.cart-n { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; background: rgba(var(--gold-rgb), .15); color: var(--gold); font-size: 11.5px; font-weight: 700; }
+.repeat { margin-top: 12px; padding: 12px 14px; border: 1px solid rgba(var(--gold-rgb), .4); background: rgba(var(--gold-rgb), .05); border-radius: 12px; }
+.repeat p { margin: 0 0 10px; font-size: 13.5px; }
+.repeat .chip.on { border-color: var(--gold); background: rgba(var(--gold-rgb), .2); }
+.repeat .chip.on small { color: var(--text); }
+.rep-all { margin-top: 6px; background: none; border: 0; color: var(--gold); text-decoration: underline; font-size: 13px; cursor: pointer; padding: 0; }
+.add-more { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 12px; border: 1px dashed var(--line-2); border-radius: 10px; background: transparent; color: var(--text); font-size: 13.5px; cursor: pointer; }
+.add-more svg { width: 16px; height: 16px; color: var(--gold); }
+.add-more:hover { border-color: var(--gold); }
+.cart-data-title { margin-top: 26px !important; }
+.summary .cart-go { background: var(--gold); color: #15110b; border-color: var(--gold); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.summary .cart-go svg { width: 14px; height: 14px; }
+.done-row.warn span, .done-row.warn b { color: var(--warn); }
+.confirm-warn { color: var(--text) !important; opacity: .85; line-height: 1.5; }
+.confirm-alert { margin-top: 18px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(217, 164, 65, .6); background: rgba(217, 164, 65, .1); text-align: left; }
+.confirm-alert b { color: #f1cd84; font-size: 14px; }
+.confirm-alert p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; }

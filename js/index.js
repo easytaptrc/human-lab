@@ -1,7 +1,7 @@
 // Página principal (pública). No contiene ningún acceso al administrador.
 import { db, collection, getDocs, query, where } from "./firebase.js";
 import { loadSite, startLoader, brandHTML } from "./site.js";
-import { $, esc, ICONS, digits, waLink, fmtMoney, toast } from "./utils.js";
+import { $, esc, ICONS, digits, waLink, fmtMoney, toast, store } from "./utils.js";
 import { pushState, enablePush, disablePush, shouldPrompt, markPrompted, INSTALL_HINT } from "./push.js";
 import { sheet } from "./sheet.js";
 import { openInstallGuide, isStandalone } from "./install-guide.js";
@@ -31,6 +31,7 @@ $("#drawerClose").innerHTML = ICONS.close;
 $("#drawerLinks").innerHTML = [
   s.showReserva && `<a href="reservar.html">${esc(s.btnReserva)}</a>`,
   s.showMiembro && `<a href="miembro.html">${esc(s.btnMiembro)}</a>`,
+  `<a href="pase.html" data-mypass hidden>Mi pase de acceso</a>`,
   s.showServicios && `<a href="#servicios" data-close>Servicios</a>`,
   s.showContacto && `<a href="#contacto" data-close>Contacto</a>`,
   s.showRecomienda && `<a href="#" data-share>${esc(s.btnRecomienda)}</a>`,
@@ -62,6 +63,7 @@ $("#heroContent").innerHTML = `
   ${s.heroText ? `<p class="hero-text">${esc(s.heroText)}</p>` : ""}
   <div class="hero-actions">
     ${s.showReserva ? `<a class="btn btn-gold btn-block btn-xl" href="reservar.html">${ICONS.calendar}<span>${esc(s.btnReserva)}</span><span class="btn-chev">${ICONS.chevron}</span></a>` : ""}
+    <a class="btn btn-block btn-mypass" href="pase.html" data-mypass hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg><span>Mi pase de acceso</span></a>
     ${s.showMiembro ? `<a class="btn btn-block btn-xl" href="miembro.html">${ICONS.user}<span>${esc(s.btnMiembro)}</span><span class="btn-chev">${ICONS.chevron}</span></a>` : ""}
     ${s.showRecomienda ? `<button class="btn btn-sm btn-recomienda" data-share>${ICONS.share}<span>${esc(s.btnRecomienda)}</span>${ICONS.chevron}</button>` : ""}
     <button class="btn btn-sm btn-install" data-install><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>Descargar app</span></button>
@@ -142,6 +144,9 @@ document.addEventListener("click", async (e) => {
     window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank", "noopener");
   }
 });
+
+// "Mi pase" aparece si este teléfono ya tiene un pase (socio o reserva)
+if (store.get("hpl_socio") || store.get("hpl_pass")) document.querySelectorAll("[data-mypass]").forEach((b) => { b.hidden = false; });
 
 // Descargar la app: guía con mini video según el dispositivo (se oculta si ya está instalada)
 document.querySelectorAll("[data-install]").forEach((b) => { b.hidden = isStandalone(); });

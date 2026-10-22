@@ -26,7 +26,8 @@ $$("#form .input-icon").forEach((l) => {
 });
 
 const params = new URLSearchParams(location.search);
-const state = { step: 1, services: [], service: null, date: null, time: null, month: null, used: {} };
+const state = { step: 1, services: [], service: null, date: null, time: null, month: null, used: {}, cart: [] };
+const MAX_CART = 14;
 const QUICK_DAYS = 7; // días que se revisan para mostrar horarios inmediatos
 
 // ---------- Disponibilidad ----------
@@ -125,10 +126,7 @@ $("#serviceList").addEventListener("click", (e) => {
   if (!card) return;
   const chip = e.target.closest(".chip");
   if (chip) {
-    setService(card.dataset.id);
-    state.date = chip.dataset.date;
-    state.time = chip.dataset.time;
-    go(4);
+    addToCart(state.services.find((x) => x.id === card.dataset.id), chip.dataset.date, chip.dataset.time);
     return;
   }
   if (e.target.closest("[data-cal]")) selectService(card.dataset.id);
@@ -204,8 +202,82 @@ async function renderTimes() {
 $("#times").addEventListener("click", (e) => {
   const b = e.target.closest(".time");
   if (!b || b.disabled) return;
-  state.time = b.dataset.time;
-  go(4);
+  addToCart(state.service, state.date, b.dataset.time);
+});
+
+// ---------- Lista de reservas (varios días, horas y servicios) ----------
+const cartKey = (it) => `${it.svc.id}|${it.date}|${it.time}`;
+function addToCart(svc, date, time, { silent = false } = {}) {
+  if (!svc) return;
+  const it = { svc, date, time };
+  if (state.cart.some((x) => cartKey(x) === cartKey(it))) { if (!silent) go(4); return; }
+  if (state.cart.length >= MAX_CART) { toast(`Puedes reservar hasta ${MAX_CART} citas a la vez.`, "warn"); return; }
+  state.cart.push(it);
+  state.cart.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  state.service = svc;
+  state.date = date;
+  state.time = time;
+  if (!silent) state.last = it;
+  if (!silent) go(4);
+}
+
+// Mismo servicio y misma hora en los próximos 7 días (para reservar toda la semana)
+async function renderCart() {
+  const box = $("#cart");
+  const items = state.cart;
+  let repeat = "";
+  const base = state.last && items.includes(state.last) ? state.last : items[0];
+  if (base) {
+    await loadUsed(base.date, addDays(base.date, 7));
+    const days = [];
+    for (let i = 1; i <= 7; i++) {
+      const ds = addDays(base.date, i);
+      if (!dateOpen(base.svc, ds)) continue;
+      const t = dayTimes(base.svc, ds).find((x) => x.time === base.time);
+      const inCart = items.some((x) => cartKey(x) === cartKey({ svc: base.svc, date: ds, time: base.time }));
+      if (t && (t.ok || inCart)) days.push({ ds, left: t.left, inCart });
+    }
+    if (days.length) {
+      const pending = days.filter((d) => !d.inCart).length;
+      repeat = `
+        <div class="repeat">
+          <p><b>¿Toda la semana?</b> Repite ${esc(base.svc.name)} a las <b>${base.time}</b> estos días:</p>
+          <div class="chips">${days.map((d) => `<button type="button" class="chip ${d.inCart ? "on" : ""}" data-rep="${d.ds}"><b>${dayLabel(d.ds).split(" ").slice(0, 2).join(" ")}</b><small>${d.inCart ? "✓ agregado" : `${d.left} lugares`}</small></button>`).join("")}</div>
+          ${pending ? `<button type="button" class="link rep-all" data-rep-all>Agregar todos (${pending})</button>` : ""}
+        </div>`;
+    }
+  }
+  box.innerHTML = `
+    <div class="cart-list">${items.map((it, i) => `<div class="cart-item"><span class="cart-n">${i + 1}</span><div><b>${dayLabel(it.date)} · ${it.time}</b><small>${esc(it.svc.name)}</small></div><button type="button" class="icon-btn" data-rm="${i}" aria-label="Quitar">${ICONS.close}</button></div>`).join("") || `<p class="muted">Aún no eliges horario.</p>`}</div>
+    ${repeat}
+    <button type="button" class="add-more" data-more>${ICONS.plus}<span>Agregar otro día, hora o servicio</span></button>`;
+  $("#submitLabel").textContent = items.length > 1 ? `Confirmar ${items.length} reservas` : "Confirmar reserva";
+}
+
+$("#cart").addEventListener("click", (e) => {
+  const base = state.last && state.cart.includes(state.last) ? state.last : state.cart[0];
+  const rm = e.target.closest("[data-rm]");
+  if (rm) {
+    state.cart.splice(Number(rm.dataset.rm), 1);
+    if (!state.cart.length) { go(1); return; }
+    renderCart();
+    return;
+  }
+  const rep = e.target.closest("[data-rep]");
+  if (rep && base) {
+    const it = { svc: base.svc, date: rep.dataset.rep, time: base.time };
+    const idx = state.cart.findIndex((x) => cartKey(x) === cartKey(it));
+    if (idx >= 0) state.cart.splice(idx, 1);
+    else addToCart(base.svc, it.date, it.time, { silent: true });
+    renderCart();
+    return;
+  }
+  if (e.target.closest("[data-rep-all]") && base) {
+    e.target.closest(".repeat").querySelectorAll(".chip:not(.on)").forEach((ch) => addToCart(base.svc, ch.dataset.rep, base.time, { silent: true }));
+    renderCart();
+    return;
+  }
+  if (e.target.closest("[data-more]")) go(1);
 });
 
 // ---------- Paso 4: datos ----------
@@ -283,20 +355,27 @@ form.addEventListener("submit", async (e) => {
     // Primero el permiso de notificaciones (el navegador exige que sea justo después del toque)
     let pushToken = "";
     if (!$("#pushOpt").hidden && form.push.checked) pushToken = (await enablePush(s.vapidKey)) || "";
-    const res = await book(f, pushToken);
+    if (!state.cart.length) { toast("Elige al menos un horario.", "error"); go(1); return; }
+    const passCode = newPassCode(); // un solo QR para todas las reservas de esta vez
+    const ok = [];
+    const failed = [];
+    for (const it of [...state.cart]) {
+      try { ok.push({ ...it, ...(await book(f, pushToken, it, passCode)) }); }
+      catch (ex) { console.error(ex); failed.push({ ...it, full: ex.message === "FULL" }); }
+    }
+    if (!ok.length) {
+      toast(failed.some((x) => x.full) ? "Esos horarios se acaban de llenar. Elige otros, por favor." : "No pudimos completar la reserva. Intenta de nuevo.", "error");
+      return;
+    }
     store.set("hpl_cliente", { name: f.name, phone: f.phone, email: f.email, age: f.age, emergency: f.emergency, memberId: f.memberId });
-    showDone(res, f, pushToken);
+    state.cart = [];
+    showDone(ok, failed, f, pushToken);
   } catch (ex) {
     console.error(ex);
-    if (ex.message === "FULL") {
-      toast("Ese horario se acaba de llenar. Elige otro, por favor.", "error");
-      go(3);
-    } else {
-      toast("No pudimos completar la reserva. Intenta de nuevo.", "error");
-    }
+    toast("No pudimos completar la reserva. Intenta de nuevo.", "error");
   } finally {
     btn.disabled = false;
-    btn.firstElementChild.textContent = "Confirmar reserva";
+    $("#submitLabel").textContent = state.cart.length > 1 ? `Confirmar ${state.cart.length} reservas` : "Confirmar reserva";
   }
 });
 
@@ -310,9 +389,8 @@ function validate(f) {
   return null;
 }
 
-async function book(f, pushToken) {
-  const svc = state.service;
-  const { date, time } = state;
+async function book(f, pushToken, item, passCode) {
+  const { svc, date, time } = item;
   const dow = dowOf(date);
   const cap = Number(slotsOf(svc)[`${dow}_${time}`]);
   if (!cap) throw new Error("FULL");
@@ -321,7 +399,6 @@ async function book(f, pushToken) {
   const memberId = (member?.memberId || f.memberId).trim().toUpperCase();
   const pKey = member?.key || (memberId ? await portalKey(memberId, f.phone) : null);
   const token = randomToken();
-  const passCode = newPassCode(); // número aleatorio del QR de la reserva
 
   await runTransaction(db, async (tx) => {
     const slot = await tx.get(slotRef);
@@ -364,18 +441,46 @@ async function book(f, pushToken) {
   return { id: resRef.id, token, passCode };
 }
 
-function icsFile(res) {
-  const st = startAt(state.date, state.time);
-  const en = new Date(st.getTime() + (Number(state.service.durationMin) || 60) * 60000);
+function icsFile(list) {
   const z = (d) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const body = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Human Prime Lab//Reservas//ES", "BEGIN:VEVENT",
-    `UID:${res.id}@humanprimelab`, `DTSTAMP:${z(new Date())}`, `DTSTART:${z(st)}`, `DTEND:${z(en)}`,
-    `SUMMARY:${state.service.name} · ${s.name}`, s.address ? `LOCATION:${s.address}` : "",
-    "BEGIN:VALARM", "TRIGGER:-PT1H", "ACTION:DISPLAY", "DESCRIPTION:Tu cita es en una hora", "END:VALARM",
-    "END:VEVENT", "END:VCALENDAR",
-  ].filter(Boolean).join("\r\n");
+  const events = list.flatMap((r) => {
+    const st = startAt(r.date, r.time);
+    const en = new Date(st.getTime() + (Number(r.svc.durationMin) || 60) * 60000);
+    return [
+      "BEGIN:VEVENT", `UID:${r.id}@humanprimelab`, `DTSTAMP:${z(new Date())}`, `DTSTART:${z(st)}`, `DTEND:${z(en)}`,
+      `SUMMARY:${r.svc.name} · ${s.name}`, s.address ? `LOCATION:${s.address}` : "",
+      "BEGIN:VALARM", "TRIGGER:-PT1H", "ACTION:DISPLAY", "DESCRIPTION:Tu cita es en una hora", "END:VALARM", "END:VEVENT",
+    ];
+  });
+  const body = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Human Prime Lab//Reservas//ES", ...events, "END:VCALENDAR"].filter(Boolean).join("\r\n");
   return URL.createObjectURL(new Blob([body], { type: "text/calendar" }));
+}
+
+function showDone(list, failed, f, pushToken) {
+  const first = list[0];
+  const many = list.length > 1;
+  $(".done .step-title").textContent = many ? `¡${list.length} reservas confirmadas!` : "¡Reserva confirmada!";
+  $("#doneCard").innerHTML = `
+    ${list.map((r) => `<div class="done-row"><span>${dayLabel(r.date)} · ${r.time}</span><b>${esc(r.svc.name)}</b></div>`).join("")}
+    ${failed.length ? `<div class="done-row warn"><span>No se pudo reservar</span><b>${failed.map((x) => `${dayLabel(x.date)} ${x.time}`).join(", ")} (lleno)</b></div>` : ""}
+    <div class="done-row"><span>Nombre</span><b>${esc(f.name)}</b></div>`;
+  renderPushBox({ ...first, all: list }, pushToken);
+  // Pase de acceso: socio → su pase de socio; persona nueva → pase de sus reservas (un solo QR para todas)
+  const passBox = $("#passBox");
+  if (member) {
+    renderPass(passBox, { kind: "member", key: member.key, name: member.name, memberId: member.memberId, ...memberStatus(member, todayStr()), until: member.endDate }, s, m);
+  } else {
+    const p = { kind: "reservation", id: first.id, token: first.token, code: first.passCode, name: f.name.trim(), service: first.svc.name, date: first.date, time: first.time, more: list.length - 1 };
+    store.set("hpl_pass", p); // para verlo después en "Mi pase" dentro de la app
+    renderPass(passBox, p, s, m);
+  }
+  const resumen = list.map((r) => `${r.svc.name} ${fmtDate(r.date)} ${r.time}`).join("; ");
+  $("#doneActions").innerHTML = `
+    <a class="btn btn-block" href="${icsFile(list)}" download="reservas-human-prime-lab.ics">${ICONS.calendar}<span>Agregar a mi calendario</span></a>
+    ${s.whatsapp ? `<a class="btn btn-block" target="_blank" rel="noopener" href="${waLink(s.whatsapp, `Hola, acabo de reservar: ${resumen}. Código ${first.passCode}. Nombre: ${f.name}`)}">${ICONS.whatsapp}<span>Enviar al gimnasio</span></a>` : ""}
+    <a class="btn btn-gold btn-block" href="index.html"><span>Volver al inicio</span></a>`;
+  $(".done-icon").innerHTML = ICONS.check;
+  go(5);
 }
 
 function renderPushBox(res, pushToken) {
@@ -391,7 +496,7 @@ function renderPushBox(res, pushToken) {
       const t = await enablePush(s.vapidKey);
       if (!t) { toast("No se activaron las notificaciones. Revisa los permisos del navegador.", "warn"); return; }
       try {
-        await updateDoc(doc(db, "reservations", res.id), { pushToken: t, tokenCheck: res.token });
+        for (const r of (res.all || [res])) await updateDoc(doc(db, "reservations", r.id), { pushToken: t, tokenCheck: r.token });
         renderPushBox(res, t);
       } catch (e) { console.error(e); toast("No pudimos activar el aviso.", "error"); }
     };
@@ -401,34 +506,11 @@ function renderPushBox(res, pushToken) {
   } else box.hidden = true;
 }
 
-function showDone(res, f, pushToken) {
-  const folio = res.id.slice(0, 6).toUpperCase();
-  $("#doneCard").innerHTML = `
-    <div class="done-row"><span>Folio</span><b>${folio}</b></div>
-    <div class="done-row"><span>Servicio</span><b>${esc(state.service.name)}</b></div>
-    <div class="done-row"><span>Fecha</span><b>${fmtDate(state.date, { long: true })}</b></div>
-    <div class="done-row"><span>Hora</span><b>${state.time}</b></div>
-    <div class="done-row"><span>Nombre</span><b>${esc(f.name)}</b></div>`;
-  renderPushBox(res, pushToken);
-  // Pase de acceso: si es socio, su pase de socio; si es persona nueva, el pase de la reserva
-  const passBox = $("#passBox");
-  if (member) {
-    renderPass(passBox, { kind: "member", key: member.key, name: member.name, memberId: member.memberId, ...memberStatus(member, todayStr()), until: member.endDate }, s, m);
-  } else {
-    renderPass(passBox, { kind: "reservation", id: res.id, token: res.token, code: res.passCode, name: f.name.trim(), service: state.service.name, date: state.date, time: state.time }, s, m);
-  }
-  $("#doneActions").innerHTML = `
-    <a class="btn btn-block" href="${icsFile(res)}" download="reserva-human-prime-lab.ics">${ICONS.calendar}<span>Agregar a mi calendario</span></a>
-    ${s.whatsapp ? `<a class="btn btn-block" target="_blank" rel="noopener" href="${waLink(s.whatsapp, `Hola, acabo de reservar ${state.service.name} el ${fmtDate(state.date, { long: true })} a las ${state.time}. Folio ${folio}. Nombre: ${f.name}`)}">${ICONS.whatsapp}<span>Enviar al gimnasio</span></a>` : ""}
-    <a class="btn btn-gold btn-block" href="index.html"><span>Volver al inicio</span></a>`;
-  $(".done-icon").innerHTML = ICONS.check;
-  go(5);
-}
-
 // ---------- Navegación ----------
 function renderSummary() {
   const box = $("#summary");
   const parts = [];
+  if (state.cart.length && state.step < 4) parts.push(`<button data-go="4" class="cart-go">${ICONS.check} Continuar con ${state.cart.length} ${state.cart.length === 1 ? "reserva" : "reservas"} →</button>`);
   if (state.step > 1 && state.service) parts.push(`<button data-go="1">${esc(state.service.name)}</button>`);
   if (state.step > 2 && state.date) parts.push(`<button data-go="2">${fmtDate(state.date)}</button>`);
   if (state.step > 3 && state.time) parts.push(`<button data-go="3">${state.time}</button>`);
@@ -450,6 +532,7 @@ function go(step) {
   if (step === 1) renderServices();
   if (step === 2) renderCalendar();
   if (step === 3) renderTimes();
+  if (step === 4) renderCart();
   renderSummary();
   const panel = $(`.step[data-panel="${step}"]`);
   panel.classList.remove("page-fade");

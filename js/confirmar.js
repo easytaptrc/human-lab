@@ -34,7 +34,7 @@ function result(ok, answer) {
     ${markHTML(m)}
     ${ok ? `<div class="icon-ok">${ICONS.check}</div>` : ""}
     <h1 class="title-wide">${ok ? (answer === "confirmada" ? "¡Te esperamos!" : "Gracias por avisar") : "Enlace no válido"}</h1>
-    <p>${ok ? (answer === "confirmada" ? "Tu asistencia quedó confirmada." : "Liberaremos tu lugar para alguien más. Puedes reservar otro horario cuando quieras.") : "Este enlace ya no es válido o está incompleto. Escríbenos si necesitas ayuda."}</p>
+    <p>${ok ? (answer === "confirmada" ? "Tu asistencia quedó confirmada." : "Liberaremos tu lugar para alguien más. Puedes reservar otro horario cuando quieras.") : "Este enlace ya no es válido o tu lugar se liberó por no confirmar a tiempo. Puedes reservar otro horario."}</p>
     <div class="actions">
       ${!ok || answer !== "confirmada" ? `<a class="btn btn-gold btn-block" href="reservar.html"><span>Reservar otro horario</span></a>` : ""}
       ${s.whatsapp ? `<a class="btn btn-block" target="_blank" rel="noopener" href="${waLink(s.whatsapp, "Hola, tengo una duda sobre mi cita.")}">${ICONS.whatsapp}<span>WhatsApp</span></a>` : ""}

@@ -15,6 +15,7 @@ export const STATUS = {
   asistio: ["Asistió", "badge-ok"],
   no_asistio: ["No asistió", "badge-bad"],
   cancelada: ["Cancelada", ""],
+  liberada: ["Liberada", "badge-warn"],
 };
 export const ATTENDANCE = {
   pendiente: ["Por confirmar", "dot-warn"],
@@ -192,6 +193,8 @@ function openDetail(ctx, r, onDone) {
         <dt>Fecha y hora</dt><dd>${fmtDate(r.date, { long: true })} · ${r.time}</dd>
         <dt>Estado</dt><dd><span class="badge ${st[1]}">${st[0]}</span></dd>
         <dt>Asistencia</dt><dd><span class="dot ${at[1]}">${at[0]}</span></dd>
+        ${r.status === "cancelada" && r.cancelledBy ? `<dt>Cancelada por</dt><dd>${r.cancelledBy === "sin_confirmar" ? "Sistema: no confirmó a tiempo (lugar liberado)" : r.cancelledBy === "cliente" ? "El cliente (no asistirá)" : esc(r.cancelledBy)}</dd>` : ""}
+        ${r.reminderCount ? `<dt>Avisos enviados</dt><dd>${r.reminderCount}</dd>` : ""}
         <dt>Nombre</dt><dd>${esc(r.name)}</dd>
         <dt>Teléfono</dt><dd>${esc(r.phone)}</dd>
         <dt>Correo</dt><dd>${esc(r.email)}</dd>
@@ -236,6 +239,7 @@ async function manualBooking(ctx, services, date, onDone) {
         <label class="field"><span>Servicio</span><select class="input" name="serviceId">${active.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}</select></label>
         <label class="field"><span>Fecha</span><input class="input" type="date" name="date" value="${date}"></label>
         <label class="field"><span>Hora</span><select class="input" name="time"></select></label>
+        <label class="field" id="customWrap" hidden><span>Hora personalizada</span><input class="input" type="time" name="customTime" step="300"></label>
         <label class="field"><span>Socio (opcional)</span><select class="input" name="memberId"><option value="">— Cliente nuevo —</option>${members.map((mb) => `<option value="${esc(mb.memberId)}">${esc(mb.memberId)} · ${esc(mb.name)}</option>`).join("")}</select></label>
         <label class="field span-2"><span>Nombre completo</span><input class="input" name="name"></label>
         <label class="field"><span>Teléfono</span><input class="input" name="phone"></label>
@@ -259,8 +263,11 @@ async function manualBooking(ctx, services, date, onDone) {
           const t = k.slice(2);
           const left = cap - (used[t] || 0);
           return `<option value="${t}" ${left <= 0 ? "disabled" : ""}>${t} · ${left <= 0 ? "lleno" : left + " lugares"}</option>`;
-        }).join("") || `<option value="">Sin horarios ese día</option>`;
+        }).join("") + `<option value="__custom">Otra hora (personalizada)…</option>`;
+        if (!times.length) tm.value = "__custom";
+        body.querySelector("#customWrap").hidden = tm.value !== "__custom";
       };
+      tm.addEventListener("change", () => { body.querySelector("#customWrap").hidden = tm.value !== "__custom"; if (tm.value === "__custom") body.querySelector("[name=customTime]").focus(); });
       svc.addEventListener("change", fill);
       dt.addEventListener("change", fill);
       fill();
@@ -278,33 +285,37 @@ async function manualBooking(ctx, services, date, onDone) {
         onClick: async (wrap) => {
           const f = formData(wrap);
           const svc = active.find((x) => x.id === f.serviceId);
-          if (!svc || !f.date || !f.time) { toast("Elige servicio, fecha y hora.", "error"); return false; }
+          if (f.time === "__custom") f.time = f.customTime;
+          if (!svc || !f.date || !/^\d{2}:\d{2}$/.test(f.time || "")) { toast("Elige servicio, fecha y hora.", "error"); return false; }
           if (!f.name || digits(f.phone).length < 10) { toast("Escribe nombre y teléfono de 10 dígitos.", "error"); return false; }
           const dow = dowOf(f.date);
-          const cap = Number(svc.slots[`${dow}_${f.time}`]);
+          // Hora fuera del horario configurado: se registra sin descontar cupo
+          const cap = Number((svc.slots || {})[`${dow}_${f.time}`]) || 0;
           const slotRef = doc(db, "slots", `${svc.id}__${f.date}__${f.time}`);
           const resRef = doc(collection(db, "reservations"));
           const mb = members.find((x) => x.memberId === f.memberId);
           try {
             await runTransaction(db, async (tx) => {
-              const slot = await tx.get(slotRef);
-              const count = slot.exists() ? slot.data().count || 0 : 0;
-              if (count >= cap) throw new Error("FULL");
-              if (slot.exists()) tx.update(slotRef, { count: increment(1), cap });
-              else tx.set(slotRef, { serviceId: svc.id, date: f.date, time: f.time, dow, cap, count: 1 });
+              if (cap) {
+                const slot = await tx.get(slotRef);
+                const count = slot.exists() ? slot.data().count || 0 : 0;
+                if (count >= cap) throw new Error("FULL");
+                if (slot.exists()) tx.update(slotRef, { count: increment(1), cap });
+                else tx.set(slotRef, { serviceId: svc.id, date: f.date, time: f.time, dow, cap, count: 1 });
+              }
               tx.set(resRef, {
                 serviceId: svc.id, serviceName: svc.name, date: f.date, time: f.time, dow,
                 startAt: Timestamp.fromDate(startAt(f.date, f.time)),
                 name: f.name, phone: digits(f.phone), email: (f.email || "").toLowerCase(), age: f.age || 0,
                 emergency: digits(f.emergency), notes: f.notes, memberId: mb?.memberId || "", memberIdTyped: "",
                 status: "confirmada", attendance: "pendiente", token: randomToken(), passCode: newPassCode(), reminderSent: false,
-                source: "recepcion", by: ctx.staff.name, createdAt: serverTimestamp(),
+                source: "recepcion", by: ctx.staff.name, customTime: !cap, createdAt: serverTimestamp(),
               });
             });
             if (mb?.portalKey) {
               await setDoc(doc(db, "portal", mb.portalKey, "reservas", resRef.id), { serviceName: svc.name, date: f.date, time: f.time, status: "confirmada", createdAt: serverTimestamp() }).catch(() => {});
             }
-            toast("Reserva registrada.");
+            toast(cap ? "Reserva registrada." : `Reserva registrada a las ${f.time} (fuera del horario, sin cupo).`);
             onDone();
           } catch (ex) {
             console.error(ex);

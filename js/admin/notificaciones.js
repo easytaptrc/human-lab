@@ -152,6 +152,11 @@ export async function render(el, ctx) {
         <div class="form-grid">
           <label class="field"><span>Avisar vencimiento con (días)</span><input class="input" type="number" name="expiringDays" min="1" value="${n.expiringDays}"></label>
           <label class="field"><span>Promoción a quien no asiste en (días)</span><input class="input" type="number" name="inactiveDays" min="7" value="${n.inactiveDays}"></label>
+          <div class="span-2 release-box">
+            <label class="switch"><input type="checkbox" name="autoRelease" ${n.autoRelease !== false ? "checked" : ""}> <b>Liberar el lugar si no confirma</b></label>
+            <label class="field" style="max-width:240px;margin-top:10px"><span>Tolerancia (minutos después del primer aviso)</span><input class="input" type="number" name="tolerance" min="5" max="45" step="5" value="${n.tolerance ?? 15}"></label>
+            <p class="hint">Ejemplo con 15 min y cita a las 6:00 pm: avisos a las 5:00, 5:05 y 5:10; a las 5:15, si no confirmó, se libera el lugar y se le avisa. Si confirma, ya no recibe avisos. Solo aplica a quien tiene notificaciones o correo/WhatsApp automático, y no a quien reservó dentro de la última hora.</p>
+          </div>
           <label class="switch" style="align-self:end;min-height:46px"><input type="checkbox" name="autoEmail" ${n.autoEmail ? "checked" : ""}> Envío automático por correo (Cloud Functions)</label>
           <label class="switch" style="align-self:end;min-height:46px"><input type="checkbox" name="autoWhatsapp" ${n.autoWhatsapp ? "checked" : ""}> Envío automático por WhatsApp API</label>
           ${t("tplReminder", "Recordatorio de cita (1 hora antes)", ["nombre", "servicio", "fecha", "hora", "enlace"])}

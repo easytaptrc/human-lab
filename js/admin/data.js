@@ -27,6 +27,8 @@ export const MODULES = [
 ];
 
 export const NOTIFY_DEFAULTS = {
+  autoRelease: true, // liberar el lugar si no confirma
+  tolerance: 15, // minutos después del primer aviso
   expiringDays: 5,
   inactiveDays: 45,
   tplReminder: "Hola {nombre}, te recordamos tu cita de {servicio} hoy a las {hora} en Human Prime Lab. Por favor confirma tu asistencia aquí: {enlace}",

@@ -1,5 +1,5 @@
 // Recepción: escanear el pase (QR) de socios y reservas para dar acceso y registrar asistencia.
-import { db, doc, getDoc, getDocs, updateDoc, setDoc, collection, query, where, limit, serverTimestamp } from "../firebase.js";
+import { db, doc, getDoc, getDocs, updateDoc, setDoc, collection, query, where, serverTimestamp } from "../firebase.js";
 import { $, esc, ICONS, todayStr, fmtDate, waLink, toast } from "../utils.js";
 import { parseQR, startScanner } from "../qr.js";
 import { memberState, memberPlans, planUsable, daysToBirthday, invalidate, siteBase } from "./data.js";
@@ -100,10 +100,14 @@ export async function render(el, ctx) {
 
   // ---------- Reserva (persona nueva) ----------
   async function handleReservation(code) {
-    const snap = await getDocs(query(collection(db, "reservations"), where("passCode", "==", code), limit(1)));
+    const snap = await getDocs(query(collection(db, "reservations"), where("passCode", "==", code)));
     if (snap.empty) { beep(false); show(`<div class="access bad"><b>No encontrado</b><p>No hay ninguna reserva con el código ${esc(code)}.</p></div>`); return; }
-    const r = { id: snap.docs[0].id, ...snap.docs[0].data() };
     const today = todayStr();
+    // Un mismo código puede tener varias reservas (toda la semana): se usa la de hoy, si no la próxima
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    const active = all.filter((x) => x.status !== "cancelada");
+    const r = active.find((x) => x.date === today && x.status === "confirmada") || active.find((x) => x.date === today) || active.find((x) => x.date > today) || all.at(-1);
+    const others = all.filter((x) => x.id !== r.id && x.date >= today && x.status !== "cancelada");
     // Si ya es socio, se trata como acceso de socio
     if (r.memberId) { await handleMember(r.memberId); return; }
     let note = "";
@@ -116,6 +120,7 @@ export async function render(el, ctx) {
     show(`
       <div class="access ${ok ? "ok" : "warn"}"><b>${ok ? "BIENVENIDO" : "REVISAR RESERVA"}</b><p>${esc(note)}</p></div>
       <div class="access-who">${avatar(r.name)}<div><b>${esc(r.name)}</b><small>${esc(r.serviceName)} · ${fmtDate(r.date)} ${esc(r.time)}</small></div></div>
+      ${others.length ? `<p class="hint" style="margin:0">También tiene: ${others.map((x) => `${fmtDate(x.date)} ${esc(x.time)} · ${esc(x.serviceName)}`).join(" · ")}</p>` : ""}
       <dl class="kv">
         <dt>Teléfono</dt><dd>${esc(r.phone)}</dd>
         <dt>Correo</dt><dd>${esc(r.email)}</dd>
@@ -134,9 +139,11 @@ export async function render(el, ctx) {
         // Los datos que llenó al reservar se pasan al formulario de alta
         openMemberForm(ctx, null, async (mb) => {
           try {
-            await updateDoc(doc(db, "reservations", r.id), { memberId: mb.memberId });
-            if (r.date >= today && mb.portalKey) {
-              await setDoc(doc(db, "portal", mb.portalKey, "reservas", r.id), { serviceName: r.serviceName, date: r.date, time: r.time, status: r.status, createdAt: serverTimestamp() });
+            for (const x of [r, ...others]) {
+              await updateDoc(doc(db, "reservations", x.id), { memberId: mb.memberId });
+              if (x.date >= today && mb.portalKey) {
+                await setDoc(doc(db, "portal", mb.portalKey, "reservas", x.id), { serviceName: x.serviceName, date: x.date, time: x.time, status: x.status, createdAt: serverTimestamp() });
+              }
             }
           } catch (ex) { console.error(ex); }
           invalidate("members");

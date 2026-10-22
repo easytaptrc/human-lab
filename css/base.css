@@ -301,3 +301,6 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .wallet-btn.google { background: #1f1f1f; }
 .wallet-btn.ghost { background: transparent; }
 .wallet-btn:hover { border-color: var(--gold); }
+.pass-more { margin: 12px 0 0 !important; color: var(--gold) !important; font-size: 12.5px !important; }
+.pass-actions { margin-top: 14px; }
+.pass-actions .btn svg { width: 18px; height: 18px; }
