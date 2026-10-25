@@ -395,7 +395,8 @@ async function openMemberDetail(ctx, mb, onChange) {
       </div>
       <div class="btn-row" style="margin:14px 0 4px">
         <button class="btn btn-sm btn-gold" data-x="checkin">${ICONS.check}<span>Registrar asistencia</span></button>
-        <button class="btn btn-sm" data-x="renew">${ICONS.calendar}<span>Renovar / agregar plan</span></button>
+        <button class="btn btn-sm btn-gold" data-x="book">${ICONS.calendar}<span>Reservar (semana / mes)</span></button>
+        <button class="btn btn-sm" data-x="renew">${ICONS.tag}<span>Renovar / agregar plan</span></button>
         <button class="btn btn-sm" data-x="msg">${ICONS.chat}<span>Mensaje</span></button>
         ${mb.phone ? `<a class="btn btn-sm" target="_blank" rel="noopener" href="${waLink(mb.phone, `Hola ${mb.name.split(" ")[0]}, `)}">${ICONS.whatsapp}<span>WhatsApp</span></a>` : ""}
         <button class="btn btn-sm" data-x="edit">${ICONS.edit}<span>Editar</span></button>
@@ -491,6 +492,7 @@ async function openMemberDetail(ctx, mb, onChange) {
     if (!x) return;
     if (x === "checkin") { await checkIn(mb); modal.close(); onChange(); }
     if (x === "renew") { modal.close(); renew(ctx, mb, onChange); }
+    if (x === "book") { modal.close(); const { openBooking } = await import("./booking.js"); openBooking(ctx, { memberId: mb.memberId, onDone: onChange }); }
     if (x === "edit") { modal.close(); openMemberForm(ctx, mb, onChange); }
     if (x === "msg") {
       modal.close();

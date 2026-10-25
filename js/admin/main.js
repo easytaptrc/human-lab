@@ -196,6 +196,7 @@ function watchReservations() {
   if (unwatch || !ctx.can("reservas")) return;
   let first = true;
   const seen = new Map(); // id → asistencia conocida
+  const groupSeen = new Set();
   unwatch = onSnapshot(query(collection(db, "reservations"), where("date", ">=", todayStr())), (snap) => {
     snap.docChanges().forEach((ch) => {
       const r = ch.doc.data();
@@ -205,6 +206,8 @@ function watchReservations() {
       const when = `${fmtDate(r.date)} · ${r.time}`;
       let title = null;
       if (ch.type === "added" && r.source === "recepcion" && r.by === ctx.staff.name) return; // la acaba de capturar este mismo usuario
+      // Varias reservas del mismo cliente a la vez (toda la semana) → un solo aviso
+      if (ch.type === "added" && r.passCode) { if (groupSeen.has(r.passCode)) return; groupSeen.add(r.passCode); setTimeout(() => groupSeen.delete(r.passCode), 60000); }
       if (ch.type === "added") title = "Nueva reserva";
       else if (ch.type === "modified" && before !== r.attendance && r.attendance === "confirmada") title = "Asistencia confirmada";
       else if (ch.type === "modified" && before !== r.attendance && r.attendance === "no_asistira") title = "Cliente no asistirá";

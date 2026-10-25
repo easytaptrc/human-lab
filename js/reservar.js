@@ -242,7 +242,7 @@ async function renderCart() {
       repeat = `
         <div class="repeat">
           <p><b>¿Toda la semana?</b> Repite ${esc(base.svc.name)} a las <b>${base.time}</b> estos días:</p>
-          <div class="chips">${days.map((d) => `<button type="button" class="chip ${d.inCart ? "on" : ""}" data-rep="${d.ds}"><b>${dayLabel(d.ds).split(" ").slice(0, 2).join(" ")}</b><small>${d.inCart ? "✓ agregado" : `${d.left} lugares`}</small></button>`).join("")}</div>
+          <div class="chips">${days.map((d) => `<button type="button" class="chip ${d.inCart ? "on" : ""}" data-rep="${d.ds}"><b>${dayLabel(d.ds).split(" ").slice(0, 2).join(" ")}</b><small>${d.inCart ? "✓ agregado" : `${d.left} ${d.left === 1 ? "lugar" : "lugares"}`}</small></button>`).join("")}</div>
           ${pending ? `<button type="button" class="link rep-all" data-rep-all>Agregar todos (${pending})</button>` : ""}
         </div>`;
     }

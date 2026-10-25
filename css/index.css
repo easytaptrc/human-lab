@@ -119,3 +119,14 @@ body.ready .hero-content > *:nth-child(4) { animation-delay: .3s; }
 .bell:disabled { opacity: .5; }
 .btn-mypass { min-height: 54px; border-color: rgba(var(--gold-rgb), .6); color: var(--gold); }
 .btn-mypass svg { width: 20px; height: 20px; }
+
+/* Tablet vertical / iPad vertical: portada más baja para ver los botones sin bajar */
+@media (min-width: 640px) and (max-width: 959px) {
+  .hero-poster .hero-media, .hero-poster .hero-media img { max-height: 56svh; }
+  .hero-poster .hero-media img { object-position: center 25%; }
+  .hero-content { padding: 0 7vw 40px; }
+  .hero-title { font-size: clamp(36px, 6.4vw, 54px); }
+  .hero-actions { max-width: 520px; width: 100%; align-self: center; }
+  .hero-foot { max-width: 620px; }
+  .side-words { top: 120px; left: 7vw; }
+}

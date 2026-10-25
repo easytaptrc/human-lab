@@ -369,3 +369,58 @@ body.modal-open { overflow: hidden; }
 .access-plans { display: flex; flex-wrap: wrap; gap: 6px; }
 .access-bday { margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(var(--gold-rgb), .12); color: var(--gold); font-size: 13.5px; }
 .release-box { padding: 14px; border: 1px solid rgba(var(--gold-rgb), .4); border-radius: 12px; background: rgba(var(--gold-rgb), .05); }
+
+/* Reserva múltiple (admin) */
+.bk-rule { border: 1px solid var(--line-2); border-radius: 12px; padding: 14px; margin-bottom: 10px; background: color-mix(in srgb, var(--surface) 60%, #000); }
+.bk-rule-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; }
+.bk-rule-top .icon-btn { width: 32px; height: 32px; color: var(--muted); }
+.bk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.bk-grid .input { min-height: 42px; padding: 8px 10px; }
+.bk-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip-btn { border: 1px solid var(--line-2); background: transparent; color: var(--text); border-radius: 999px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
+.chip-btn.on, .chip-btn:hover { border-color: var(--gold); color: var(--gold); background: rgba(var(--gold-rgb), .1); }
+.bk-days { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: 12.5px; }
+.bk-days .dow-pick span { width: 32px; height: 32px; }
+.bk-preview { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; padding-right: 2px; }
+.bk-item { display: grid; grid-template-columns: auto minmax(110px, auto) 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; font-size: 13px; cursor: pointer; }
+.bk-item input { width: 18px; height: 18px; accent-color: var(--gold); }
+.bk-when { display: flex; flex-direction: column; line-height: 1.2; }
+.bk-when small { color: var(--gold); font-weight: 600; }
+.bk-svc { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-st { font-size: 11.5px; white-space: nowrap; }
+.bk-item.st-ok .bk-st { color: var(--ok); }
+.bk-item.st-full, .bk-item.st-past, .bk-item.st-closed { opacity: .5; cursor: not-allowed; }
+.bk-item.st-full .bk-st { color: var(--bad); }
+.bk-item.st-off .bk-st { color: var(--warn); }
+@media (max-width: 520px) {
+  .bk-item { grid-template-columns: auto 1fr auto; }
+  .bk-svc { grid-column: 2 / 4; grid-row: 2; font-size: 12px; }
+}
+
+/* Tablet / iPad: si la tabla no cabe en su espacio, se muestra como tarjetas (según el ancho real del contenedor) */
+.table-wrap { container-type: inline-size; }
+@container (max-width: 860px) {
+  table.t, .t tbody, .t tr, .t td { display: block; width: 100%; }
+  .t thead { display: none; }
+  .t tbody tr { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .t tbody tr:last-child { border-bottom: 0; }
+  .t td { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 4px 0; border: 0; text-align: right; min-height: 30px; }
+  .t td::before { content: attr(data-label); flex: none; font-family: var(--font-display); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); text-align: left; }
+  .t td[data-label=""]::before { display: none; }
+  .t td[data-label=""] { justify-content: flex-end; }
+  .t .who { min-width: 0; justify-content: flex-end; text-align: right; }
+  .t .actions { justify-content: flex-end; flex-wrap: wrap; }
+}
+/* En tablet las tarjetas van en dos columnas para aprovechar el espacio */
+@container (min-width: 560px) and (max-width: 860px) {
+  .t tbody { display: grid; grid-template-columns: 1fr 1fr; }
+  .t tbody tr { border-right: 1px solid var(--line); }
+  .t tbody tr:nth-child(2n) { border-right: 0; }
+  .t tbody tr:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
+}
+@media (pointer: coarse) {
+  .t .icon-btn { width: 42px; height: 42px; }
+  .toolbar .input { min-height: 44px; }
+  .seg button { padding: 11px 14px; }
+  .side-nav a { padding: 13px 12px; }
+}
